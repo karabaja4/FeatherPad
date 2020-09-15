@@ -218,7 +218,7 @@ void TextEdit::setEditorFont (const QFont &f, bool setDefault)
     else
         lineNumberArea_->setFont (f);
     /* find the widest digit (used in calculating line number area width)*/
-    F.setBold (false); // it's bold for the current line
+    F.setBold (true); // it's bold for the current line
     widestDigit_ = 0;
     int maxW = 0;
     for (int i = 0; i < 10; ++i)
