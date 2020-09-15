@@ -380,13 +380,13 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
     neutralFormat.setForeground (neutralColor);
     whiteSpaceFormat.setForeground (Faded);
     translucentFormat.setForeground (translucent);
-    translucentFormat.setFontItalic (true);
+    translucentFormat.setFontItalic (false);
 
     quoteFormat.setForeground (DarkGreen);
     altQuoteFormat.setForeground (DarkGreen);
     urlInsideQuoteFormat.setForeground (DarkGreen);
-    altQuoteFormat.setFontItalic (true);
-    urlInsideQuoteFormat.setFontItalic (true);
+    altQuoteFormat.setFontItalic (false);
+    urlInsideQuoteFormat.setFontItalic (false);
     urlInsideQuoteFormat.setFontUnderline (true);
     /*quoteStartExpression.setPattern ("\"([^\"'])");
     quoteEndExpression.setPattern ("([^\"'])\"");*/
@@ -418,7 +418,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         rule.format = ft;
         highlightingRules.append (rule);
 
-        ft.setFontItalic (true);
+        ft.setFontItalic (false);
         ft.setForeground (Blue);
         /* before parentheses... */
         rule.pattern.setPattern ("\\b[A-Za-z0-9_]+(?=\\s*\\()");
@@ -454,7 +454,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
 
         /* before parentheses */
         ft.setFontWeight (QFont::Normal);
-        ft.setFontItalic (true);
+        ft.setFontItalic (false);
         rule.pattern.setPattern ("(?<![A-Za-z0-9_\\$])[A-Za-z0-9_\\$]+(?=\\s*\\()");
         rule.format = ft;
         highlightingRules.append (rule);
@@ -503,7 +503,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
             highlightingRules.append (rule);
 
             /* platforms */
-            keywordFormat.setFontItalic (true);
+            keywordFormat.setFontItalic (false);
             rule.pattern.setPattern ("(?<=^|\\(|\\s)(APPLE|CRLF|CYGWIN|DOS|HAIKU|LF|MINGW|MSYS|UNIX|WIN32)(?=$|\\)|\\s)");
             rule.format = keywordFormat;
             highlightingRules.append (rule);
@@ -524,7 +524,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
             highlightingRules.append (rule);
 
             keywordFormat.setFontWeight (QFont::Bold);
-            keywordFormat.setFontItalic (true);
+            keywordFormat.setFontItalic (false);
             rule.pattern.setPattern ("(?<=^|\\(|\\s)(@ONLY|DEFINED|EQUAL|EXISTS|GREATER|IS_ABSOLUTE|IS_NEWER_THAN|IS_SYMLINK|LESS|MATCHES|STREQUAL|STRGREATER|STRLESS|VERSION_GREATER|VERSION_EQUAL|VERSION_LESS|AnyNewerVersion|ExactVersion|SameMajorVersion)(?=$|\\)|\\s)");
             rule.format = keywordFormat;
             highlightingRules.append (rule);
@@ -581,16 +581,16 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
 
     /* these are used for all comments */
     commentFormat.setForeground (Red);
-    commentFormat.setFontItalic (true);
+    commentFormat.setFontItalic (false);
     /* WARNING: This is used by Fountain's synopses too. */
     noteFormat.setFontWeight (QFont::Bold);
-    noteFormat.setFontItalic (true);
+    noteFormat.setFontItalic (false);
     noteFormat.setForeground (DarkRed);
 
     /* these can also be used inside multiline comments */
     urlFormat.setFontUnderline (true);
     urlFormat.setForeground (Blue);
-    urlFormat.setFontItalic (true);
+    urlFormat.setFontItalic (false);
 
     if (progLan == "c" || progLan == "cpp")
     {
@@ -609,7 +609,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         /* Qt's global functions, enums and global colors */
         if (progLan == "cpp")
         {
-            cFormat.setFontItalic (true);
+            cFormat.setFontItalic (false);
             rule.pattern.setPattern ("\\bq(App)(?!(\\@|#|\\$))\\b|\\bq(Abs|Bound|Critical|Debug|Fatal|FuzzyCompare|InstallMsgHandler|MacVersion|Max|Min|Round64|Round|Version|Warning|getenv|putenv|rand|srand|tTrId|unsetenv|_check_ptr|t_set_sequence_auto_mnemonic|t_symbian_exception2Error|t_symbian_exception2LeaveL|t_symbian_throwIfError)(?!(\\.|-|@|#|\\$))\\b");
             rule.format = cFormat;
             highlightingRules.append (rule);
@@ -648,7 +648,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
 
         /* after dot (may override keywords) */
         ft.setForeground (Blue);
-        ft.setFontItalic (true);
+        ft.setFontItalic (false);
         rule.pattern.setPattern ("(?<=\\.)\\s*[A-Za-z0-9_\\$]+(?=\\s*\\()"); // before parentheses
         rule.format = ft;
         highlightingRules.append (rule);
@@ -686,7 +686,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         highlightingRules.append (rule);
 
         QTextCharFormat xmlAttributeFormat;
-        xmlAttributeFormat.setFontItalic (true);
+        xmlAttributeFormat.setFontItalic (false);
         xmlAttributeFormat.setForeground (Blue);
         /* before = */
         rule.pattern.setPattern ("\\s+[A-Za-z0-9_\\-:]+(?=\\s*\\=\\s*(\"|&quot;))");
@@ -889,7 +889,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
 
         /* hh:mm:ss,ttt */
         srtFormat = neutralFormat;
-        srtFormat.setFontItalic (true);
+        srtFormat.setFontItalic (false);
         srtFormat.setFontWeight (QFont::Bold);
         rule.pattern.setPattern ("^\\s*\\d{2}:\\d{2}:\\d{2},\\d{3}\\s+-->\\s+\\d{2}:\\d{2}:\\d{2},\\d{3}\\s*$");
         rule.format = srtFormat;
@@ -931,7 +931,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         if (progLan == "config")
         {
             desktopFormat.setFontWeight (QFont::Bold);
-            desktopFormat.setFontItalic (true);
+            desktopFormat.setFontItalic (false);
             /* color values */
             rule.pattern.setPattern ("#([A-Fa-f0-9]{3}){1,2}(?![A-Za-z0-9_]+)|#([A-Fa-f0-9]{3}){2}[A-Fa-f0-9]{2}(?![A-Za-z0-9_]+)");
             rule.format = desktopFormat;
@@ -1039,7 +1039,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         highlightingRules.append (rule);
 
         /* synopses */
-        fFormat.setFontItalic (true);
+        fFormat.setFontItalic (false);
         rule.pattern.setPattern ("^\\s*=.*");
         rule.format = fFormat;
         highlightingRules.append (rule);
@@ -1078,7 +1078,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         /* footnotes */
         markdownFormat.setFontWeight (QFont::Bold);
         markdownFormat.setForeground (DarkBlue);
-        markdownFormat.setFontItalic (true);
+        markdownFormat.setFontItalic (false);
         rule.pattern.setPattern ("\\[\\^[^\\]]+\\]");
         rule.format = markdownFormat;
         highlightingRules.append (rule);
@@ -1189,7 +1189,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         reSTFormat.setFontWeight (QFont::Normal);
 
         /* italic */
-        reSTFormat.setFontItalic (true);
+        reSTFormat.setFontItalic (false);
         rule.pattern.setPattern ("(?<=[\\s\\(\\[{<:'\\\"/]|^)\\*"
                                  "([^*\\s]|[^*\\s]+[^*]*[^*\\s])"
                                  "\\*(?=[\\s\\)\\]}>.,;:\\-'\\\"/\\\\]|$)");
@@ -1243,7 +1243,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
     {
         QTextCharFormat luaFormat;
         luaFormat.setFontWeight (QFont::Bold);
-        luaFormat.setFontItalic (true);
+        luaFormat.setFontItalic (false);
         luaFormat.setForeground (DarkMagenta);
         rule.pattern.setPattern ("\\bos(?=\\.)");
         rule.format = luaFormat;
@@ -1295,7 +1295,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         highlightingRules.append (rule);
 
         /* numbers */
-        scssFormat.setFontItalic (true);
+        scssFormat.setFontItalic (false);
         rule.pattern.setPattern ("(-|\\+){0,1}\\b\\d*\\.{0,1}\\d+%*");
         rule.format = scssFormat;
         highlightingRules.append (rule);
@@ -1318,7 +1318,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         scssFormat.setFontWeight (QFont::Normal);
 
         /* variables ($...) */
-        scssFormat.setFontItalic (true);
+        scssFormat.setFontItalic (false);
         rule.pattern.setPattern ("\\$[A-Za-z0-9_\\-]+");
         rule.format = scssFormat;
         highlightingRules.append (rule);
@@ -3610,7 +3610,7 @@ void Highlighter::markdownFonts (const QString &text)
     boldFormat.setFontWeight (QFont::Bold);
 
     QTextCharFormat italicFormat = neutralFormat;
-    italicFormat.setFontItalic (true);
+    italicFormat.setFontItalic (false);
 
     QTextCharFormat boldItalicFormat = italicFormat;
     boldItalicFormat.setFontWeight (QFont::Bold);
@@ -3678,7 +3678,7 @@ void Highlighter::fountainFonts (const QString &text)
     boldFormat.setFontWeight (QFont::Bold);
 
     QTextCharFormat italicFormat = neutralFormat;
-    italicFormat.setFontItalic (true);
+    italicFormat.setFontItalic (false);
 
     QTextCharFormat boldItalicFormat = italicFormat;
     boldItalicFormat.setFontWeight (QFont::Bold);
@@ -3879,7 +3879,7 @@ void Highlighter::debControlFormatting (const QString &text)
         exp.setPattern ("\\([^\\(\\)\\[\\]]+\\)|\\[[^\\(\\)\\[\\]]+\\]");
         int index = indx;
         debFormat = neutralFormat;
-        debFormat.setFontItalic (true);
+        debFormat.setFontItalic (false);
         while ((index = text.indexOf (exp, index, &expMatch)) > -1)
         {
             int ml = expMatch.capturedLength();
@@ -4184,7 +4184,7 @@ void Highlighter::highlightFountainBlock (const QString &text)
         {
             fFormat.setFontWeight (QFont::Bold);
             fFormat.setForeground (DarkMagenta);
-            fFormat.setFontItalic (true);
+            fFormat.setFontItalic (false);
             setFormatWithoutOverwrite (0, text.length(), fFormat, commentFormat);
         }
         else
@@ -4204,7 +4204,7 @@ void Highlighter::highlightFountainBlock (const QString &text)
             /* lyrics */
             else if (text.indexOf (lyricRegex) == 0)
             {
-                fFormat.setFontItalic (true);
+                fFormat.setFontItalic (false);
                 fFormat.setForeground (DarkMagenta);
                 setFormatWithoutOverwrite (0, text.length(), fFormat, commentFormat);
             }

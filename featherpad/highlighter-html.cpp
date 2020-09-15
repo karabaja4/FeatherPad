@@ -240,7 +240,7 @@ void Highlighter::htmlBrackets (const QString &text, const int start)
         if (mainFormatting)
         {
             QTextCharFormat htmlAttributeFormat;
-            htmlAttributeFormat.setFontItalic (true);
+            htmlAttributeFormat.setFontItalic (false);
             htmlAttributeFormat.setForeground (Brown);
             QRegularExpressionMatch attMatch;
             static const QRegularExpression attExp ("[A-Za-z0-9_\\-]+(?=\\s*\\=)");
@@ -315,7 +315,7 @@ void Highlighter::htmlBrackets (const QString &text, const int start)
                 errorFormat.setForeground (Red);
                 QTextCharFormat encodedFormat;
                 encodedFormat.setForeground (DarkMagenta);
-                encodedFormat.setFontItalic (true);
+                encodedFormat.setFontItalic (false);
                 QTextCharFormat specialFormat = encodedFormat;
                 specialFormat.setFontWeight (QFont::Bold);
 
