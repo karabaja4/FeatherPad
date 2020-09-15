@@ -434,7 +434,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         }
         else if (progLan == "python")
         { // built-in functions
-            ft.setFontWeight (QFont::Bold);
+            ft.setFontWeight (QFont::Normal);
             ft.setForeground (Magenta);
             rule.pattern.setPattern ("\\b(abs|add|all|append|any|as_integer_ratio|ascii|basestring|bin|bit_length|bool|bytearray|bytes|callable|c\\.conjugate|capitalize|center|chr|classmethod|clear|cmp|compile|complex|count|critical|debug|decode|delattr|dict|difference_update|dir|discard|divmod|encode|endswith|enumerate|error|eval|expandtabs|exception|exec|execfile|extend|file|filter|find|float|format|fromhex|fromkeys|frozenset|get|getattr|globals|hasattr|hash|has_key|help|hex|id|index|info|input|insert|int|intersection_update|isalnum|isalpha|isdecimal|isdigit|isinstance|islower|isnumeric|isspace|issubclass|istitle|items|iter|iteritems|iterkeys|itervalues|isupper|is_integer|join|keys|len|list|ljust|locals|log|long|lower|lstrip|map|max|memoryview|min|next|object|oct|open|ord|partition|pop|popitem|pow|print|property|range|raw_input|read|reduce|reload|remove|replace|repr|reverse|reversed|rfind|rindex|rjust|rpartition|round|rsplit|rstrip|run|seek|set|setattr|slice|sort|sorted|split|splitlines|staticmethod|startswith|str|strip|sum|super|symmetric_difference_update|swapcase|title|translate|tuple|type|unichr|unicode|update|upper|values|vars|viewitems|viewkeys|viewvalues|warning|write|xrange|zip|zfill|(__(abs|add|and|cmp|coerce|complex|contains|delattr|delete|delitem|delslice|div|divmod|enter|eq|exit|float|floordiv|ge|get|getattr|getattribute|getitem|getslice|gt|hex|iadd|iand|idiv|ifloordiv|ilshift|invert|imod|import|imul|init|instancecheck|index|int|ior|ipow|irshift|isub|iter|itruediv|ixor|le|len|long|lshift|lt|missing|mod|mul|neg|nonzero|oct|or|pos|pow|radd|rand|rdiv|rdivmod|reversed|rfloordiv|rlshift|rmod|rmul|ror|rpow|rshift|rsub|rrshift|rtruediv|rxor|set|setattr|setitem|setslice|sub|subclasses|subclasscheck|truediv|unicode|xor)__))(?=\\s*\\()");
             rule.format = ft;
@@ -447,7 +447,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
 
         /* before dot but not after it (might be overridden by keywords) */
         ft.setForeground (Blue);
-        ft.setFontWeight (QFont::Bold);
+        ft.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("(?<!\\.)\\s*[A-Za-z0-9_\\$]+\\s*(?=\\.)"); // "(?<![A-Za-z0-9_\\$])[A-Za-z0-9_\\$]+\\s*(?=\\.)"
         rule.format = ft;
         highlightingRules.append (rule);
@@ -460,7 +460,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         highlightingRules.append (rule);
 
         ft.setFontItalic (false);
-        ft.setFontWeight (QFont::Bold);
+        ft.setFontWeight (QFont::Normal);
         ft.setForeground (Magenta);
         rule.pattern.setPattern ("\\b(?<!(@|#|\\$))(export|from|import|as)(?!(@|#|\\$|(\\s*:)))\\b");
         rule.format = ft;
@@ -523,21 +523,21 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
             rule.pattern.setPattern ("(?<=^|\\(|\\s)(ABSOLUTE|AFTER|ALIAS|ALIASED_TARGET|ALL|ALWAYS|APPEND|ARG_VAR|ARGS|ARCHIVE|ATTACHED_FILES|ATTACHED_FILES_ON_FAIL|AUTHOR_WARNING|BEFORE|BINARY_DIR|BOOL|BRIEF_DOCS|BUNDLE|BYPRODUCTS|CACHE|CACHED_VARIABLE|CLEAR|CMAKE_FIND_ROOT_PATH_BOTH|COMP|COMMAND|COMMENT|COMPONENT|COMPONENTS|CONFIG|CONFIG_MODE|CONFIGS|CONFIGURE_COMMAND|CONFIGURATIONS|COPY|COPYONLY|COMPATIBILITY|COST|CREATE_LINK|DEFAULT_MSG|DEPENDS|DEPENDEES|DEPENDERS|DEPRECATION|DESCRIPTION|DESTINATION|DIRECTORY|DIRECTORY_PERMISSIONS|DISABLED|DISABLED_FEATURES|DOC|DOWNLOAD|DOWNLOAD_COMMAND|DOWNLOAD_DIR|DOWNLOAD_NAME|DOWNLOAD_NO_EXTRACT|DOWNLOAD_NO_PROGRESS|ENABLED_FEATURES|ENCODING|ERROR_VARIABLE|ERROR_FILE|ERROR_QUIET|ERROR_STRIP_TRAILING_WHITESPACE|ESCAPE_QUOTES|EXACT|EXCLUDE|EXCLUDE_FROM_ALL|EXCLUDE_FROM_MAIN|EXPORT|EXPORT_LINK_INTERFACE_LIBRARIES|EXPORT_NAME|EXPORT_PROPERTIES|EXT|FAIL_MESSAGE|FALSE|FATAL_ERROR|FATAL_ON_MISSING_REQUIRED_PACKAGES|FILE_PERMISSIONS|FILENAME|FILEPATH|FILES|FILES_MATCHING|FIND|FILTER|FOLDER|FRAMEWORK|FORCE|FOUND_VAR|FULL_DOCS|GENERATE|GET|GLOB|GLOB_RECURSE|GLOBAL|GROUP_EXECUTE|GROUP_READ|GUARD|HANDLE_COMPONENTS|HINTS|IMMEDIATE|IMPLICIT_DEPENDS|IMPORTED|IN|INDEPENDENT_STEP_TARGETS|INCLUDE_QUIET_PACKAGES|INCLUDES|INPUT_FILE|INSERT|INSTALL|INSTALL_COMMAND|INSTALL_DIR|INSTALL_DESTINATION|INTERNAL|INTERFACE|JOIN|LABELS|LAST_EXT|LENGTH|LIBRARY|LIMIT|LINK_PRIVATE|LINK_PUBLIC|LOCK|LOG|LOG_DIR|MAIN_DEPENDENCY|MAKE_DIRECTORY|MEASUREMENT|MODULE|MODIFIED|NAMELINK_ONLY|NAMELINK_SKIP|NAMESPACE|NAME|NAME_WE|NAME_WLE|NAMES|NEWLINE_STYLE|NO_CHECK_REQUIRED_COMPONENTS_MACRO|NO_CMAKE_BUILDS_PATH|NO_CMAKE_ENVIRONMENT_PATH|NO_CMAKE_FIND_ROOT_PATH|NO_CMAKE_PACKAGE_REGISTRY|NO_CMAKE_PATH|NO_CMAKE_SYSTEM_PACKAGE_REGISTRY|NO_CMAKE_SYSTEM_PATH|NO_DEPENDS|NO_DEFAULT_PATH|NO_MODULE|NO_POLICY_SCOPE|NO_SET_AND_CHECK_MACRO|NO_SOURCE_PERMISSIONS|NO_SYSTEM_ENVIRONMENT_PATH|OBJECT|OFF|OFFSET|ON|ONLY_CMAKE_FIND_ROOT_PATH|OPTIONAL|OPTIONAL_PACKAGES_FOUND|OPTIONAL_PACKAGES_NOT_FOUND|OUTPUT_FILE|OUTPUT_QUIET|OUTPUT_STRIP_TRAILING_WHITESPACE|OUTPUT_VARIABLE|OWNER_EXECUTE|OWNER_READ|OWNER_WRITE|PATH|PACKAGES_FOUND|PACKAGES_NOT_FOUND|PACKAGE_VERSION_FILE|PARENT_SCOPE|PATHS|PATH_SUFFIXES|PATCH_COMMAND|PATH_VARS|PATTERN|PERMISSIONS|PKG_CONFIG_FOUND|PKG_CONFIG_EXECUTABLE|PKG_CONFIG_VERSION_STRING|PRE_BUILD|PRE_LINK|PREFIX|POST_BUILD|PRIVATE|PRIVATE_HEADER|PROGRAM|PROGRAM_ARGS|PROGRAMS|PROPERTY|PROPERTIES|PUBLIC|PUBLIC_HEADER|PURPOSE|QUIET|RANGE|READ|READ_SYMLINK|REALPATH|RECOMMENDED|RECOMMENDED_PACKAGES_FOUND|RECOMMENDED_PACKAGES_NOT_FOUND|REGEX|RELATIVE_PATH|RENAME|REMOVE|REMOVE_AT|REMOVE_DUPLICATES|REMOVE_RECURSE|REMOVE_ITEM|REQUIRED|REQUIRED_PACKAGES_FOUND|REQUIRED_PACKAGES_NOT_FOUND|REQUIRED_VARS|RESOURCE|REVERSE|RESULT_VARIABLE|RESULTS_VARIABLE|RUNTIME|RUNTIME_PACKAGES_FOUND|RUNTIME_PACKAGES_NOT_FOUND|RETURN_VALUE|SEND_ERROR|SHARED|SIZE|SORT|SOURCE|SOURCE_DIR|SOURCE_SUBDIR|SOURCES|SOVERSION|STAMP_DIR|STATIC|STATUS|STEP_TARGETS|STRING|STRINGS|SUBLIST|SUFFIX|SYSTEM|TARGETS|TEST|TIMEOUT|TIMESTAMP|TMP_DIR|TO_CMAKE_PATH|TO_NATIVE_PATH|TOUCH|TOUCH_NOCREATE|TRANSFORM|TRUE|TYPE|UNKNOWN|UPDATE_COMMAND|UPDATE_DISCONNECTED|UPLOAD|URL|URL_HASH|USES_TERMINAL|VAR|VARIABLE|VARIABLE_PREFIX|VERBATIM|VERSION|VERSION_HEADER|VERSION_VAR|WARNING|WHAT|WILL_FAIL|WORKING_DIRECTORY|WRITE)(?=$|\\)|\\s)");
             highlightingRules.append (rule);
 
-            keywordFormat.setFontWeight (QFont::Bold);
+            keywordFormat.setFontWeight (QFont::Normal);
             keywordFormat.setFontItalic (false);
             rule.pattern.setPattern ("(?<=^|\\(|\\s)(@ONLY|DEFINED|EQUAL|EXISTS|GREATER|IS_ABSOLUTE|IS_NEWER_THAN|IS_SYMLINK|LESS|MATCHES|STREQUAL|STRGREATER|STRLESS|VERSION_GREATER|VERSION_EQUAL|VERSION_LESS|AnyNewerVersion|ExactVersion|SameMajorVersion)(?=$|\\)|\\s)");
             rule.format = keywordFormat;
             highlightingRules.append (rule);
             keywordFormat.setFontItalic (false);
         }
-        keywordFormat.setFontWeight (QFont::Bold);
+        keywordFormat.setFontWeight (QFont::Normal);
         keywordFormat.setForeground (Magenta);
         rule.pattern.setPattern ("((^\\s*|[\\(\\);&`\\|{}!=^]+\\s*|(?<=~|\\.)+\\s+)((if|then|elif|elseif|else|fi|while|do|done|esac)\\s+)*)\\K(?<!\\${)(sudo\\s+)?((kill|killall|torify|proxychains)\\s+)?(adduser|addgroup|apropos|apt|apt-get|aspell|awk|basename|bash|bc|bsdtar|bunzip2|bzip2|cal|cat|cd|cfdisk|chgrp|chmod|chown|chroot|chkconfig|cksum|clear|cmake|cmp|comm|cp|cron|crontab|csplit|curl|cut|cvs|date|dc|dd|ddrescue|df|diff|diff3|dig|dir|dircolors|dirname|dirs|dmesg|dpkg|du|egrep|eject|emacs|env|ethtool|expect|expand|expr|fdformat|fdisk|featherpad|fgrep|file|find|finger|fmt|fold|format|fpad|free|fsck|ftp|function|fuser|gawk|gcc|gio|git|gpg|grep|groups|gunzip|gzip|head|hostname|id|ifconfig|ifdown|ifup|import|install|java|javac|jobs|join|kdialog|kill|killall|less|links|ln|locate|logname|look|lpc|lpr|lprint|lprintd|lprintq|lprm|ls|lsof|lynx|mail|make|makepkg|man|mkdir|mkfifo|mkisofs|mknod|mktemp|more|mount|mtools|mv|mmv|nano|netstat|nice|nl|nohup|nslookup|open|op|pacman|passwd|paste|pathchk|perl|pico|pine|ping|pkill|popd|pr|printcap|printenv|proxychains|ps|pwd|python|qarma|qmake(-qt[3-9])*|quota|quotacheck|quotactl|ram|rcp|readarray|reboot|rename|renice|remsync|rev|rm|rmdir|rsync|ruby|screen|scp|sdiff|sed|sftp|shutdown|sleep|slocate|sort|split|ssh|strace|su|sudo|sum|svn|symlink|sync|tail|tar|tee|time|touch|top|torify|traceroute|tr|tsort|tty|type|ulimit|umask|umount|uname|unexpand|uniq|units|unshar|unzip|useradd|usermod|users|usleep|uuencode|uudecode|vdir|vi|vim|vmstat|wall|watch|wc|whereis|which|who|whoami|wget|write|xargs|xeyes|yad|yes|zenity|zip|zypper|7z)(?!(\\.|-|@|#|\\$))\\b");
         rule.format = keywordFormat;
         highlightingRules.append (rule);
     }
     else
-        keywordFormat.setFontWeight (QFont::Bold);
+        keywordFormat.setFontWeight (QFont::Normal);
     keywordFormat.setForeground (DarkBlue);
 
     /* types */
@@ -583,7 +583,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
     commentFormat.setForeground (Red);
     commentFormat.setFontItalic (false);
     /* WARNING: This is used by Fountain's synopses too. */
-    noteFormat.setFontWeight (QFont::Bold);
+    noteFormat.setFontWeight (QFont::Normal);
     noteFormat.setFontItalic (false);
     noteFormat.setForeground (DarkRed);
 
@@ -597,7 +597,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         QTextCharFormat cFormat;
 
         /* Qt and Gtk+ specific classes */
-        cFormat.setFontWeight (QFont::Bold);
+        cFormat.setFontWeight (QFont::Normal);
         cFormat.setForeground (DarkMagenta);
         if (progLan == "cpp")
             rule.pattern.setPattern ("\\bQ[A-Z][A-Za-z0-9]+(?!(\\.|-|@|#|\\$))\\b");
@@ -618,7 +618,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
             rule.pattern.setPattern ("\\bQt\\s*::\\s*[A-Z][A-Za-z0-9_]+(?!(\\.|-|@|#|\\$))\\b");
             rule.format = cFormat;
             highlightingRules.append (rule);
-            cFormat.setFontWeight (QFont::Bold);
+            cFormat.setFontWeight (QFont::Normal);
             cFormat.setFontItalic (false);
 
             cFormat.setForeground (Magenta);
@@ -636,7 +636,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
     else if (progLan == "python")
     {
         QTextCharFormat pFormat;
-        pFormat.setFontWeight (QFont::Bold);
+        pFormat.setFontWeight (QFont::Normal);
         pFormat.setForeground (DarkMagenta);
         rule.pattern.setPattern ("\\bself(?!(@|\\$))\\b");
         rule.format = pFormat;
@@ -665,7 +665,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
 
         if (progLan == "qml")
         {
-            ft.setFontWeight (QFont::Bold);
+            ft.setFontWeight (QFont::Normal);
             ft.setForeground (DarkMagenta);
             rule.pattern.setPattern ("\\b(?<!(@|#|\\$))(Qt([A-Za-z]+)?|Accessible|AnchorAnimation|AnchorChanges|AnimatedImage|AnimatedSprite|Animation|AnimationController|Animator|Behavior|BorderImage|Canvas|CanvasGradient|CanvasImageData|CanvasPixelArray|ColorAnimation|Column|Context2D|DoubleValidator|Drag|DragEvent|DropArea|EnterKey|Flickable|Flipable|Flow|FocusScope|FontLoader|FontMetrics|Gradient|GradientStop|Grid|GridMesh|GridView|Image|IntValidator|Item|ItemGrabResult|KeyEvent|KeyNavigation|Keys|LayoutMirroring|ListView|Loader|Matrix4x4|MouseArea|MouseEvent|MultiPointTouchArea|NumberAnimation|OpacityAnimator|OpenGLInfo|ParallelAnimation|ParentAnimation|ParentChange|Path|PathAnimation|PathArc|PathAttribute|PathCubic|PathCurve|PathElement|PathInterpolator|PathLine|PathPercent|PathQuad|PathSvg|PathView|PauseAnimation|PinchArea|PinchEvent|Positioner|PropertyAction|PropertyAnimation|PropertyChanges|Rectangle|RegExpValidator|Repeater|Rotation|RotationAnimation|RotationAnimator|Row|Scale|ScaleAnimator|ScriptAction|SequentialAnimation|ShaderEffect|ShaderEffectSource|Shortcut|SmoothedAnimation|SpringAnimation|Sprite|SpriteSequence|State|StateChangeScript|StateGroup|SystemPalette|Text|TextEdit|TextInput|TextMetrics|TouchPoint|Transform|Transition|Translate|UniformAnimator|Vector3dAnimation|ViewTransition|WheelEvent|XAnimator|YAnimator|CloseEvent|ColorDialog|ColumnLayout|Dialog|FileDialog|FontDialog|GridLayout|Layout|MessageDialog|RowLayout|StackLayout|LocalStorage|Screen|SignalSpy|TestCase|Window|XmlListModel|XmlRole|Action|ApplicationWindow|BusyIndicator|Button|Calendar|CheckBox|ComboBox|ExclusiveGroup|GroupBox|Label|Menu|MenuBar|MenuItem|MenuSeparator|ProgressBar|RadioButton|ScrollView|Slider|SpinBox|SplitView|Stack|StackView|StackViewDelegate|StatusBar|Switch|Tab|TabView|TableView|TableViewColumn|TextArea|TextField|ToolBar|ToolButton|TreeView|Affector|Age|AngleDirection|Attractor|CumulativeDirection|CustomParticle|Direction|EllipseShape|Emitter|Friction|Gravity|GroupGoal|ImageParticle|ItemParticle|LineShape|MaskShape|Particle|ParticleGroup|ParticlePainter|ParticleSystem|PointDirection|RectangleShape|Shape|SpriteGoal|TargetDirection|TrailEmitter|Turbulence|Wander|Timer)(?!(\\-|@|#|\\$))\\b");
             rule.format = ft;
@@ -678,7 +678,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         xmlGt.setPattern ("(>|&gt;)");
 
         QTextCharFormat xmlElementFormat;
-        xmlElementFormat.setFontWeight (QFont::Bold);
+        xmlElementFormat.setFontWeight (QFont::Normal);
         xmlElementFormat.setForeground (Violet);
         /* after </ or before /> */
         rule.pattern.setPattern ("\\s*(<|&lt;)/?[A-Za-z0-9_\\-:]+|\\s*(<|&lt;)!(DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\\s|\\s*/?(>|&gt;)");
@@ -788,7 +788,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
 
         if (progLan == "sh" || progLan == "makefile" || progLan == "cmake")
         {
-            shFormat.setFontWeight (QFont::Bold);
+            shFormat.setFontWeight (QFont::Normal);
             /* brackets */
             rule.pattern.setPattern ("\\s+\\[{1,2}\\s+|^\\[{1,2}\\s+|\\s+\\]{1,2}\\s+|\\s+\\]{1,2}$|\\s+\\]{1,2}\\s*(?=;)");
             rule.format = shFormat;
@@ -809,19 +809,19 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         rule.format = diffPlusFormat;
         highlightingRules.append (rule);
 
-        /*diffMinusFormat.setFontWeight (QFont::Bold);
+        /*diffMinusFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("^\\-{3}.*");
         rule.format = diffMinusFormat;
         highlightingRules.append (rule);
 
-        diffPlusFormat.setFontWeight (QFont::Bold);
+        diffPlusFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("^\\+{3}.*");
         rule.format = diffPlusFormat;
         highlightingRules.append (rule);*/
 
         QTextCharFormat diffLinesFormat;
         diffLinesFormat.setForeground (DarkBlue);
-        diffLinesFormat.setFontWeight (QFont::Bold);
+        diffLinesFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("^diff.*");
         rule.format = diffLinesFormat;
         highlightingRules.append (rule);
@@ -837,7 +837,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
          * May 19 02:01:44 debian sudo:
          *   blue  green  magenta bold */
         QTextCharFormat logFormat = neutralFormat;
-        logFormat.setFontWeight (QFont::Bold);
+        logFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("\\b(\\d{4}-\\d{2}-\\d{2}|\\d{2}/(\\d{2}|[A-Za-z]{3})/\\d{4}|\\d{4}/(\\d{2}|[A-Za-z]{3})/\\d{2}|[A-Za-z]{3}\\s+\\d{1,2})(T|\\s)\\d{2}:\\d{2}(:\\d{2}((\\+|-)\\d+)?)?(AM|PM|am|pm)?\\s+[A-Za-z0-9_\\s]+(?=\\s*:)");
         rule.format = logFormat;
         highlightingRules.append (rule);
@@ -849,28 +849,28 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         highlightingRules.append (rule);
 
         QTextCharFormat logDateFormat;
-        logDateFormat.setFontWeight (QFont::Bold);
+        logDateFormat.setFontWeight (QFont::Normal);
         logDateFormat.setForeground (Blue);
         rule.pattern.setPattern ("\\b(\\d{4}-\\d{2}-\\d{2}|\\d{2}/(\\d{2}|[A-Za-z]{3})/\\d{4}|\\d{4}/(\\d{2}|[A-Za-z]{3})/\\d{2}|[A-Za-z]{3}\\s+\\d{1,2})(?=(T|\\s)\\d{2}:\\d{2}(:\\d{2}((\\+|-)\\d+)?)?(AM|PM|am|pm)?\\b)");
         rule.format = logDateFormat;
         highlightingRules.append (rule);
 
         QTextCharFormat logTimeFormat;
-        logTimeFormat.setFontWeight (QFont::Bold);
+        logTimeFormat.setFontWeight (QFont::Normal);
         logTimeFormat.setForeground (DarkGreenAlt);
         rule.pattern.setPattern ("(?<=T|\\s)\\d{2}:\\d{2}(:\\d{2}((\\+|-)\\d+)?)?(AM|PM|am|pm)?\\b");
         rule.format = logTimeFormat;
         highlightingRules.append (rule);
 
         QTextCharFormat logInOutFormat;
-        logInOutFormat.setFontWeight (QFont::Bold);
+        logInOutFormat.setFontWeight (QFont::Normal);
         logInOutFormat.setForeground (Brown);
         rule.pattern.setPattern ("\\s+IN(?=\\s*\\=)|\\s+OUT(?=\\s*\\=)");
         rule.format = logInOutFormat;
         highlightingRules.append (rule);
 
         QTextCharFormat logRootFormat;
-        logRootFormat.setFontWeight (QFont::Bold);
+        logRootFormat.setFontWeight (QFont::Normal);
         logRootFormat.setForeground (Red);
         rule.pattern.setPattern ("\\broot\\b");
         rule.format = logRootFormat;
@@ -879,7 +879,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
     else if (progLan == "srt")
     {
         QTextCharFormat srtFormat;
-        srtFormat.setFontWeight (QFont::Bold);
+        srtFormat.setFontWeight (QFont::Normal);
 
         /* <...> */
         srtFormat.setForeground (Violet);
@@ -890,7 +890,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         /* hh:mm:ss,ttt */
         srtFormat = neutralFormat;
         srtFormat.setFontItalic (false);
-        srtFormat.setFontWeight (QFont::Bold);
+        srtFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("^\\s*\\d{2}:\\d{2}:\\d{2},\\d{3}\\s+-->\\s+\\d{2}:\\d{2}:\\d{2},\\d{3}\\s*$");
         rule.format = srtFormat;
         highlightingRules.append (rule);
@@ -930,7 +930,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         QTextCharFormat desktopFormat = neutralFormat;
         if (progLan == "config")
         {
-            desktopFormat.setFontWeight (QFont::Bold);
+            desktopFormat.setFontWeight (QFont::Normal);
             desktopFormat.setFontItalic (false);
             /* color values */
             rule.pattern.setPattern ("#([A-Fa-f0-9]{3}){1,2}(?![A-Za-z0-9_]+)|#([A-Fa-f0-9]{3}){2}[A-Fa-f0-9]{2}(?![A-Za-z0-9_]+)");
@@ -951,7 +951,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         highlightingRules.append (rule);
 
         desktopFormat = neutralFormat;
-        desktopFormat.setFontWeight (QFont::Bold);
+        desktopFormat.setFontWeight (QFont::Normal);
         /* [...] */
         rule.pattern.setPattern ("^\\[.*\\]$");
         rule.format = desktopFormat;
@@ -998,21 +998,21 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
 
         /* lists */
         yamlFormat.setForeground (DarkBlue);
-        yamlFormat.setFontWeight (QFont::Bold);
+        yamlFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("^(\\s*-(\\s|$))+");
         rule.format = yamlFormat;
         highlightingRules.append (rule);
 
         /* booleans */
         yamlFormat.setForeground (DarkBlue);
-        yamlFormat.setFontWeight (QFont::Bold);
+        yamlFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("^((\\s*-\\s)+)?\\s*\\K(true|false|yes|no|TRUE|FALSE|YES|NO|True|False|Yes|No)\\s*(?=(#|$))");
         rule.format = yamlFormat;
         highlightingRules.append (rule);
 
         /* the start of a literal block (-> yamlLiteralBlock()) */
         codeBlockFormat.setForeground (DarkMagenta);
-        codeBlockFormat.setFontWeight (QFont::Bold);
+        codeBlockFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("^[^#]*\\s+\\K(\\||>)-?\\s*$");
         rule.format = codeBlockFormat;
         highlightingRules.append (rule);
@@ -1028,7 +1028,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
 
         /* sections */
         fFormat.setForeground (DarkRed);
-        fFormat.setFontWeight (QFont::Bold);
+        fFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("^\\s*#.*");
         rule.format = fFormat;
         highlightingRules.append (rule);
@@ -1053,7 +1053,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
     else if (progLan == "gtkrc")
     {
         QTextCharFormat gtkrcFormat;
-        gtkrcFormat.setFontWeight (QFont::Bold);
+        gtkrcFormat.setFontWeight (QFont::Normal);
         /* color value format (#xyz) */
         /*gtkrcFormat.setForeground (DarkGreenAlt);
         rule.pattern.setPattern ("#([A-Fa-f0-9]{3}){1,2}(?![A-Za-z0-9_]+)|#([A-Fa-f0-9]{3}){2}[A-Fa-f0-9]{2}(?![A-Za-z0-9_]+)");
@@ -1076,7 +1076,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         QTextCharFormat markdownFormat;
 
         /* footnotes */
-        markdownFormat.setFontWeight (QFont::Bold);
+        markdownFormat.setFontWeight (QFont::Normal);
         markdownFormat.setForeground (DarkBlue);
         markdownFormat.setFontItalic (false);
         rule.pattern.setPattern ("\\[\\^[^\\]]+\\]");
@@ -1127,7 +1127,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         markdownFormat.setFontUnderline (false);
 
         /* headings */
-        markdownFormat.setFontWeight (QFont::Bold);
+        markdownFormat.setFontWeight (QFont::Normal);
         markdownFormat.setForeground (Verda);
         rule.pattern.setPattern ("^#+\\s+.*");
         rule.format = markdownFormat;
@@ -1145,14 +1145,14 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         QTextCharFormat reSTFormat;
 
         /* headings */
-        reSTFormat.setFontWeight (QFont::Bold);
+        reSTFormat.setFontWeight (QFont::Normal);
         reSTFormat.setForeground (Blue);
         rule.pattern.setPattern ("^([^\\s\\w:])\\1{2,}$");
         rule.format = reSTFormat;
         highlightingRules.append (rule);
 
         /* lists */
-        reSTFormat.setFontWeight (QFont::Bold);
+        reSTFormat.setFontWeight (QFont::Normal);
         reSTFormat.setForeground (DarkMagenta);
         rule.pattern.setPattern ("^\\s*(\\*|-|\\+|#\\.|[0-9]+\\.|[0-9]+\\)|\\([0-9]+\\)|[a-zA-Z]\\.|[a-zA-Z]\\)|\\([a-zA-Z]\\))\\s+");
         rule.format = reSTFormat;
@@ -1180,7 +1180,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         reSTFormat = neutralFormat;
 
         /* bold */
-        reSTFormat.setFontWeight (QFont::Bold);
+        reSTFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("(?<=[\\s\\(\\[{<:'\\\"/]|^)\\*\\*"
                                  "([^*\\s]|[^*\\s][^*]*[^*\\s])"
                                  "\\*\\*(?=[\\s\\)\\]}>.,;:\\-'\\\"/\\\\]|$)");
@@ -1225,7 +1225,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         highlightingRules.append (rule);
 
         /* ".. X::" (like literalinclude) */
-        reSTFormat.setFontWeight (QFont::Bold);
+        reSTFormat.setFontWeight (QFont::Normal);
         reSTFormat.setForeground (DarkGreen);
         //rule.pattern.setPattern ("^\\s*\\.{2} literalinclude::(?!\\S)");
         rule.pattern.setPattern ("^\\s*\\.{2} ((\\w|-)+::(?!\\S)|code-block::)");
@@ -1242,7 +1242,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
     else if (progLan == "lua")
     {
         QTextCharFormat luaFormat;
-        luaFormat.setFontWeight (QFont::Bold);
+        luaFormat.setFontWeight (QFont::Normal);
         luaFormat.setFontItalic (false);
         luaFormat.setForeground (DarkMagenta);
         rule.pattern.setPattern ("\\bos(?=\\.)");
@@ -1252,7 +1252,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
     else if (progLan == "m3u")
     {
         QTextCharFormat plFormat = neutralFormat;
-        plFormat.setFontWeight (QFont::Bold);
+        plFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("^#EXTM3U\\b");
         rule.format = plFormat;
         highlightingRules.append (rule);
@@ -1276,7 +1276,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         highlightingRules.append (rule);*/
 
         plFormat.setForeground (DarkGreen);
-        plFormat.setFontWeight (QFont::Bold);
+        plFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("^#EXTINF\\b");
         rule.format = plFormat;
         highlightingRules.append (rule);
@@ -1302,7 +1302,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
 
         /* colors */
         scssFormat.setForeground (Verda);
-        scssFormat.setFontWeight (QFont::Bold);
+        scssFormat.setFontWeight (QFont::Normal);
         rule.pattern.setPattern ("#([A-Fa-f0-9]{3}){1,2}(?![A-Za-z0-9_]+)|#([A-Fa-f0-9]{3}){2}[A-Fa-f0-9]{2}(?![A-Za-z0-9_]+)");
         rule.format = scssFormat;
         highlightingRules.append (rule);
@@ -1328,7 +1328,7 @@ Highlighter::Highlighter (QTextDocument *parent, const QString& lang,
         QTextCharFormat dartFormat;
 
         /* dart:core classes */
-        dartFormat.setFontWeight (QFont::Bold);
+        dartFormat.setFontWeight (QFont::Normal);
         dartFormat.setForeground (DarkMagenta);
         rule.pattern.setPattern ("\\b(BidirectionalIterator|BigInt|Comparable|DateTime|Deprecated|Duration|Expando|Function|Future|Invocation|Iterable|Iterator|List|Map|MapEntry|Match|Object|Pattern|RegExp|RegExpMatch|RuneIterator|Runes|Set|Sink|StackTrace|Stopwatch|Stream|String|StringBuffer|StringSink|Symbol|Type|Uri|UriData)\\b");
         rule.format = dartFormat;
@@ -2584,7 +2584,7 @@ bool Highlighter::multiLineQuote (const QString &text, const int start, int comS
     if (progLan == "cpp")
     {
         rFormat = quoteFormat;
-        rFormat.setFontWeight (QFont::Bold);
+        rFormat.setFontWeight (QFont::Normal);
         cppData = static_cast<TextBlockData *>(currentBlock().userData());
         QTextBlock prevBlock = currentBlock().previous();
         if (prevBlock.isValid())
@@ -3324,7 +3324,7 @@ bool Highlighter::isHereDocument (const QString &text)
     QTextCharFormat blockFormat;
     blockFormat.setForeground (Violet);
     QTextCharFormat delimFormat = blockFormat;
-    delimFormat.setFontWeight (QFont::Bold);
+    delimFormat.setFontWeight (QFont::Normal);
     QString delimStr;
 
     /* format the start delimiter */
@@ -3607,13 +3607,13 @@ bool Highlighter::markdownMultiLine (const QString &text,
 void Highlighter::markdownFonts (const QString &text)
 {
     QTextCharFormat boldFormat = neutralFormat;
-    boldFormat.setFontWeight (QFont::Bold);
+    boldFormat.setFontWeight (QFont::Normal);
 
     QTextCharFormat italicFormat = neutralFormat;
     italicFormat.setFontItalic (false);
 
     QTextCharFormat boldItalicFormat = italicFormat;
-    boldItalicFormat.setFontWeight (QFont::Bold);
+    boldItalicFormat.setFontWeight (QFont::Normal);
 
     /* NOTE: Apparently, all browsers use expressions similar to the following ones.
              However, these patterns aren't logical. For example, escaping an asterisk
@@ -3675,13 +3675,13 @@ void Highlighter::markdownFonts (const QString &text)
 void Highlighter::fountainFonts (const QString &text)
 {
     QTextCharFormat boldFormat = neutralFormat;
-    boldFormat.setFontWeight (QFont::Bold);
+    boldFormat.setFontWeight (QFont::Normal);
 
     QTextCharFormat italicFormat = neutralFormat;
     italicFormat.setFontItalic (false);
 
     QTextCharFormat boldItalicFormat = italicFormat;
-    boldItalicFormat.setFontWeight (QFont::Bold);
+    boldItalicFormat.setFontWeight (QFont::Normal);
 
     QRegularExpressionMatch italicMatch, boldcMatch, expMatch;
     static const QRegularExpression italicExp ("(?<!\\\\)\\*([^*]|(?:(?<=\\\\)\\*))+(?<!\\\\|\\s)\\*");
@@ -3805,7 +3805,7 @@ void Highlighter::reSTMainFormatting (int start, const QString &text)
             if (rule.pattern == QRegularExpression (":[\\w\\-+]+:`[^`]*`"))
             { // format the reference start too
                 QTextCharFormat boldFormat = neutralFormat;
-                boldFormat.setFontWeight (QFont::Bold);
+                boldFormat.setFontWeight (QFont::Normal);
                 setFormat (index, text.indexOf (":`", index) - index + 1, boldFormat);
             }
             index += match.capturedLength();
@@ -3847,7 +3847,7 @@ void Highlighter::debControlFormatting (const QString &text)
         if (text.indexOf (exp, 0, &expMatch) == 0)
         {
             /* before ":" */
-            debFormat.setFontWeight (QFont::Bold);
+            debFormat.setFontWeight (QFont::Normal);
             debFormat.setForeground (DarkBlue);
             setFormat (0, expMatch.capturedLength(), debFormat);
 
@@ -4161,7 +4161,7 @@ void Highlighter::highlightFountainBlock (const QString &text)
         if (previousBlockState() == updateState && isFountainLineBlank (nxtBlock)
             && text.indexOf (heading) == 0)
         {
-            fFormat.setFontWeight (QFont::Bold);
+            fFormat.setFontWeight (QFont::Normal);
             fFormat.setForeground (Blue);
             setFormatWithoutOverwrite (0, text.length(), fFormat, commentFormat);
         }
@@ -4170,7 +4170,7 @@ void Highlighter::highlightFountainBlock (const QString &text)
                  && nxtBlock.isValid() && !isFountainLineBlank (nxtBlock)
                  && (text.indexOf (charRegex) == 0 || isUpperCase (text)))
         {
-            fFormat.setFontWeight (QFont::Bold);
+            fFormat.setFontWeight (QFont::Normal);
             fFormat.setForeground (DarkBlue);
             setFormatWithoutOverwrite (0, text.length(), fFormat, commentFormat);
             if (currentBlockState() != commentState && currentBlockState() != markdownBlockQuoteState)
@@ -4182,7 +4182,7 @@ void Highlighter::highlightFountainBlock (const QString &text)
                       && text.indexOf (QRegularExpression ("<$")) == -1) // not centered
                      || (isUpperCase (text) && text.endsWith ("TO:"))))
         {
-            fFormat.setFontWeight (QFont::Bold);
+            fFormat.setFontWeight (QFont::Normal);
             fFormat.setForeground (DarkMagenta);
             fFormat.setFontItalic (false);
             setFormatWithoutOverwrite (0, text.length(), fFormat, commentFormat);
@@ -4197,7 +4197,7 @@ void Highlighter::highlightFountainBlock (const QString &text)
             /* parentheticals (following characters or dialogs) */
             if (text.indexOf (parenRegex) == 0 && previousBlockState() == codeBlockState)
             {
-                fFormat.setFontWeight (QFont::Bold);
+                fFormat.setFontWeight (QFont::Normal);
                 fFormat.setForeground (DarkGreen);
                 setFormatWithoutOverwrite (0, text.length(), fFormat, commentFormat);
             }
@@ -4684,7 +4684,7 @@ void Highlighter::highlightBlock (const QString &text)
                                 if (match.capturedLength() == length)
                                 {
                                     fi.setForeground (DarkBlue);
-                                    fi.setFontWeight (QFont::Bold);
+                                    fi.setFontWeight (QFont::Normal);
                                 }
                             }
                         }
@@ -4772,7 +4772,7 @@ void Highlighter::highlightBlock (const QString &text)
 
                 /* list start */
                 QTextCharFormat markdownFormat;
-                markdownFormat.setFontWeight (QFont::Bold);
+                markdownFormat.setFontWeight (QFont::Normal);
                 markdownFormat.setForeground (DarkBlue);
                 QRegularExpression listRegex (QStringLiteral ("^ {0,")
                                               + QString::number (3 + extraBlockIndentation)
@@ -4966,7 +4966,7 @@ void Highlighter::highlightBlock (const QString &text)
             if (!isCommented)
             {
                 QTextCharFormat blockFormat = codeBlockFormat;
-                blockFormat.setFontWeight (QFont::Bold);
+                blockFormat.setFontWeight (QFont::Normal);
                 setFormat (text.count() - 2,  2, blockFormat);
                 setCurrentBlockState (codeBlockState);
             }

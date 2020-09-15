@@ -1883,10 +1883,10 @@ void TextEdit::lineNumberAreaPaintEvent (QPaintEvent *event)
     }
     else
     {
-        painter.fillRect (event->rect(), QColor (40, 40 , 40));
-        painter.setPen (Qt::white);
-        currentBlockFg = QColor (255, 205 , 0);
-        currentLineBg = QColor (255, 235 , 130);
+        painter.fillRect (event->rect(), QColor (208, 208 , 208));
+        painter.setPen (Qt::black);
+        currentBlockFg = QColor (176, 176, 176);
+        currentLineBg = QColor (176, 176, 176);
         currentLineFg = Qt::black;
     }
 

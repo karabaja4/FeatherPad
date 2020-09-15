@@ -39,7 +39,7 @@ void Highlighter::htmlBrackets (const QString &text, const int start)
     static const QRegularExpression styleExp ("<(style|STYLE)$|<(style|STYLE)\\s+[^>]*");
     bool isStyle (false);
     QTextCharFormat htmlBraFormat;
-    htmlBraFormat.setFontWeight (QFont::Bold);
+    htmlBraFormat.setFontWeight (QFont::Normal);
     htmlBraFormat.setForeground (Violet);
 
     int prevState = previousBlockState();
@@ -317,7 +317,7 @@ void Highlighter::htmlBrackets (const QString &text, const int start)
                 encodedFormat.setForeground (DarkMagenta);
                 encodedFormat.setFontItalic (false);
                 QTextCharFormat specialFormat = encodedFormat;
-                specialFormat.setFontWeight (QFont::Bold);
+                specialFormat.setFontWeight (QFont::Normal);
 
                 index = text.indexOf (ampersand, start);
                 while (index >= 0 && format (index) != mainFormat)

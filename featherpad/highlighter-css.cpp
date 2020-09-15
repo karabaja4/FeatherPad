@@ -674,7 +674,7 @@ void Highlighter::cssHighlighter (const QString &text, bool mainFormatting, cons
         /* color value format (#xyz, #abcdef, #abcdefxy) */
         QTextCharFormat cssColorFormat;
         cssColorFormat.setForeground (Verda);
-        cssColorFormat.setFontWeight (QFont::Bold);
+        cssColorFormat.setFontWeight (QFont::Normal);
         cssColorFormat.setFontItalic (false);
         QRegularExpressionMatch match;
         // previously: "#\\b([A-Za-z0-9]{3}){0,4}(?![A-Za-z0-9_]+)"
