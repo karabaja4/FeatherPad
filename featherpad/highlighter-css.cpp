@@ -401,7 +401,7 @@ void Highlighter::cssHighlighter (const QString &text, bool mainFormatting, cons
     QList<int> valueRegions;
 
     QTextCharFormat cssValueFormat;
-    cssValueFormat.setFontItalic (true);
+    cssValueFormat.setFontItalic (false);
     cssValueFormat.setForeground (Verda);
 
 
@@ -599,7 +599,7 @@ void Highlighter::cssHighlighter (const QString &text, bool mainFormatting, cons
         {
             /* css property format (before :...;) */
             QTextCharFormat cssPropFormat;
-            cssPropFormat.setFontItalic (true);
+            cssPropFormat.setFontItalic (false);
             cssPropFormat.setForeground (Blue);
             static const QRegularExpression cssProp ("[A-Za-z0-9_\\-]+(?=\\s*(?<!:):(?!:))");
             int indxTmp = text.indexOf (cssProp, realBlockStart, &match);
@@ -654,7 +654,7 @@ void Highlighter::cssHighlighter (const QString &text, bool mainFormatting, cons
 
             /* numbers in css values */
             QTextCharFormat numFormat;
-            numFormat.setFontItalic (true);
+            numFormat.setFontItalic (false);
             numFormat.setForeground (Brown);
             QRegularExpressionMatch numMatch;
             QRegularExpression numExpression ("(-|\\+){0,1}\\b\\d*\\.{0,1}\\d+");
@@ -675,7 +675,7 @@ void Highlighter::cssHighlighter (const QString &text, bool mainFormatting, cons
         QTextCharFormat cssColorFormat;
         cssColorFormat.setForeground (Verda);
         cssColorFormat.setFontWeight (QFont::Bold);
-        cssColorFormat.setFontItalic (true);
+        cssColorFormat.setFontItalic (false);
         QRegularExpressionMatch match;
         // previously: "#\\b([A-Za-z0-9]{3}){0,4}(?![A-Za-z0-9_]+)"
         static const QRegularExpression colorValue ("#([A-Fa-f0-9]{3}){1,2}(?![A-Za-z0-9_]+)|#([A-Fa-f0-9]{3}){2}[A-Fa-f0-9]{2}(?![A-Za-z0-9_]+)");
