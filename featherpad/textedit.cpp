@@ -1885,8 +1885,8 @@ void TextEdit::lineNumberAreaPaintEvent (QPaintEvent *event)
     {
         painter.fillRect (event->rect(), QColor (224, 224 , 224));
         painter.setPen (Qt::black);
-        currentBlockFg = QColor (197, 197, 197);
-        currentLineBg = QColor (197, 197, 197);
+        currentBlockFg = QColor (207, 207, 207);
+        currentLineBg = QColor (207, 207, 207);
         currentLineFg = Qt::black;
     }
 
