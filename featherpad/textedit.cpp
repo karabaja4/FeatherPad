@@ -218,7 +218,7 @@ void TextEdit::setEditorFont (const QFont &f, bool setDefault)
     else
         lineNumberArea_->setFont (f);
     /* find the widest digit (used in calculating line number area width)*/
-    F.setBold (true); // it's bold for the current line
+    F.setBold (false); // it's bold for the current line
     widestDigit_ = 0;
     int maxW = 0;
     for (int i = 0; i < 10; ++i)
@@ -287,7 +287,7 @@ int TextEdit::lineNumberAreaWidth()
         num += digit;
     }
     QFont f = font();
-    f.setBold (true);
+    f.setBold (false);
 #if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
     return (6 + QFontMetrics (f).horizontalAdvance (num)); // 6 = 3 + 3 (-> lineNumberAreaPaintEvent)
 #else
@@ -1885,8 +1885,8 @@ void TextEdit::lineNumberAreaPaintEvent (QPaintEvent *event)
     {
         painter.fillRect (event->rect(), QColor (208, 208 , 208));
         painter.setPen (Qt::black);
-        currentBlockFg = QColor (176, 176, 176);
-        currentLineBg = QColor (176, 176, 176);
+        currentBlockFg = QColor (184, 184, 184);
+        currentLineBg = QColor (184, 184, 184);
         currentLineFg = Qt::black;
     }
 
@@ -1901,7 +1901,7 @@ void TextEdit::lineNumberAreaPaintEvent (QPaintEvent *event)
     int curBlock = textCursor().blockNumber();
     int h = fontMetrics().height();
     QFont bf = font();
-    bf.setBold (true);
+    bf.setBold (false);
 
     while (block.isValid() && top <= event->rect().bottom())
     {
