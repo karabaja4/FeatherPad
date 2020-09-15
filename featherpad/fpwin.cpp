@@ -2427,6 +2427,8 @@ void FPwin::onOpeningNonexistent()
 /*************************/
 void FPwin::showWarningBar (const QString& message, bool startupBar)
 {
+    return;
+    
     /* don't show the warning bar when there's a modal dialog */
     QList<QDialog*> dialogs = findChildren<QDialog*>();
     for (int i = 0; i < dialogs.count(); ++i)
