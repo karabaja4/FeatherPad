@@ -833,7 +833,7 @@ bool FPwin::hasAnotherDialog()
     if (res)
     {
         showWarningBar ("<center><b><big>" + tr ("Another FeatherPad window has a modal dialog!") + "</big></b></center>"
-                        + "<center><i>" + tr ("Please attend to that window or just close its dialog!") + "</i></center>");
+                        + "<center>" + tr ("Please attend to that window or just close its dialog!") + "</center>");
     }
     return res;
 }
@@ -1112,9 +1112,9 @@ FPwin::DOCSTATE FPwin::savePrompt (int tabIndex, bool noToAll)
         msgBox.setIcon (QMessageBox::Question);
         msgBox.setText ("<center><b><big>" + tr ("Save changes?") + "</big></b></center>");
         if (isRemoved)
-            msgBox.setInformativeText ("<center><i>" + tr ("The file does not exist.") + "</i></center>");
+            msgBox.setInformativeText ("<center>" + tr ("The file does not exist.") + "</center>");
         else
-            msgBox.setInformativeText ("<center><i>" + tr ("The document has been modified.") + "</i></center>");
+            msgBox.setInformativeText ("<center>" + tr ("The document has been modified.") + "</center>");
         if (noToAll && ui->tabWidget->count() > 1)
             msgBox.setStandardButtons (QMessageBox::Save
                                        | QMessageBox::Discard
@@ -1654,7 +1654,7 @@ void FPwin::executeProcess()
         if (tabPage->findChild<QProcess *>(QString(), Qt::FindDirectChildrenOnly))
         {
             showWarningBar ("<center><b><big>" + tr ("Another process is running in this tab!") + "</big></b></center>"
-                            + "<center><i>" + tr ("Only one process is allowed per tab.") + "</i></center>");
+                            + "<center>" + tr ("Only one process is allowed per tab.") + "</center>");
             return;
         }
 
@@ -1760,7 +1760,7 @@ void FPwin::displayMessage (bool error)
         msgDlg->setSizeGripEnabled (true);
         QGridLayout *grid = new QGridLayout;
         QLabel *label = new QLabel (msgDlg);
-        label->setText ("<center><b>" + tr ("Script File") + ": </b></center><i>" + process->objectName() + "</i>");
+        label->setText ("<center><b>" + tr ("Script File") + ": </b></center>" + process->objectName() + "");
         label->setTextInteractionFlags (Qt::TextSelectableByMouse);
         label->setWordWrap (true);
         label->setMargin (5);
@@ -2387,7 +2387,7 @@ void FPwin::onOpeninNonTextFiles()
     disconnect (this, &FPwin::finishedLoading, this, &FPwin::onOpeninNonTextFiles);
     QTimer::singleShot (0, this, [=]() {
         showWarningBar ("<center><b><big>" + tr ("Non-text file(s) not opened!") + "</big></b></center>\n"
-                        + "<center><i>" + tr ("See Preferences → Files → Do not permit opening of non-text files") + "</i></center>");
+                        + "<center>" + tr ("See Preferences → Files → Do not permit opening of non-text files") + "</center>");
     });
 }
 /*************************/
@@ -2467,7 +2467,7 @@ void FPwin::showCrashWarning()
 {
     QTimer::singleShot (0, this, [=]() {
         showWarningBar ("<center><b><big>" + tr ("A previous crash detected!") + "</big></b></center>"
-                        + "<center><i>" + tr ("Preferably, close all FeatherPad windows and start again!") + "</i></center>", true);
+                        + "<center>" + tr ("Preferably, close all FeatherPad windows and start again!") + "</center>", true);
     });
 }
 /*************************/
@@ -2894,7 +2894,7 @@ bool FPwin::saveFile (bool keepSyntax)
         msgBox.changeButtonText (QMessageBox::No, tr ("No"));
         msgBox.changeButtonText (QMessageBox::Cancel, tr ("Cancel"));
         msgBox.setText ("<center>" + tr ("Do you want to use <b>MS Windows</b> end-of-lines?") + "</center>");
-        msgBox.setInformativeText ("<center><i>" + tr ("This may be good for readability under MS Windows.") + "</i></center>");
+        msgBox.setInformativeText ("<center>" + tr ("This may be good for readability under MS Windows.") + "</center>");
         msgBox.setWindowModality (Qt::WindowModal);
         QString contents;
         size_t ln;
@@ -3041,7 +3041,7 @@ bool FPwin::saveFile (bool keepSyntax)
     {
         QString str = writer.device()->errorString();
         showWarningBar ("<center><b><big>" + tr ("Cannot be saved!") + "</big></b></center>\n"
-                        + "<center><i>" + QString ("<center><i>%1.</i></center>").arg (str) + "<i/></center>");
+                        + "<center>" + QString ("<center>%1.</center>").arg (str) + "</center>");
     }
 
     if (success && textEdit->isReadOnly() && !alreadyOpen (tabPage))
@@ -4818,13 +4818,13 @@ void FPwin::checkSpelling()
     if (dictPath.isEmpty())
     {
         showWarningBar ("<center><b><big>" + tr ("You need to add a Hunspell dictionary.") + "</big></b></center>"
-                        + "<center><i>" + tr ("See Preferences → Text → Spell Checking!") + "</i></center>");
+                        + "<center>" + tr ("See Preferences → Text → Spell Checking!") + "</center>");
         return;
     }
     if (!QFile::exists (dictPath))
     {
         showWarningBar ("<center><b><big>" + tr ("The Hunspell dictionary does not exist.") + "</big></b></center>"
-                        + "<center><i>" + tr ("See Preferences → Text → Spell Checking!") + "</i></center>");
+                        + "<center>" + tr ("See Preferences → Text → Spell Checking!") + "</center>");
         return;
     }
     if (dictPath.endsWith (".dic"))
@@ -4833,7 +4833,7 @@ void FPwin::checkSpelling()
     if (!QFile::exists (affixFile))
     {
         showWarningBar ("<center><b><big>" + tr ("The Hunspell dictionary is not accompanied by an affix file.") + "</big></b></center>"
-                        + "<center><i>" + tr ("See Preferences → Text → Spell Checking!") + "</i></center>");
+                        + "<center>" + tr ("See Preferences → Text → Spell Checking!") + "</center>");
         return;
     }
     QString confPath = QStandardPaths::writableLocation (QStandardPaths::ConfigLocation);
