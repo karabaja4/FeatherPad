@@ -357,9 +357,7 @@ void Config::readSyntaxColors()// may be called multiple times
     settingsColors.beginGroup ("curLineHighlight");
     curLineHighlight_ = qBound (-1, settingsColors.value ("value", -1).toInt(), 255);
     settingsColors.endGroup();
-    if (curLineHighlight_ >= 0
-        && (darkColScheme_ ? curLineHighlight_ > 70
-                           : curLineHighlight_ < 210))
+    if (curLineHighlight_ > 255)
     {
         curLineHighlight_ = -1;
     }
