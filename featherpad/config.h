@@ -560,10 +560,10 @@ public:
         return curLineHighlight_;
     }
     int getMinCurLineHighlight() const {
-        return darkColScheme_ ? 0 : 210;
+        return 0;
     }
     int getMaxCurLineHighlight() const {
-        return darkColScheme_ ? 70 : 255;
+        return 255;
     }
     void setCurLineHighlight (int value);
 
