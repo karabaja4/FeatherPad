@@ -83,6 +83,7 @@ PrefDialog::PrefDialog (QWidget *parent)
     ui->setupUi (this);
     parent_ = parent;
     setWindowModality (Qt::WindowModal);
+    ui->promptLabel->setStyleSheet ("QLabel {background-color: #7d0000; color: white; border-radius: 3px; margin: 2px; padding: 5px;}");
     ui->promptLabel->hide();
     promptTimer_ = nullptr;
 
@@ -256,9 +257,6 @@ PrefDialog::PrefDialog (QWidget *parent)
 
     ui->trailingSpacesBox->setChecked (config.getRemoveTrailingSpaces());
     connect (ui->trailingSpacesBox, &QCheckBox::stateChanged, this, &PrefDialog::prefRemoveTrailingSpaces);
-
-    ui->scrollBox->setChecked (config.getScrollJumpWorkaround());
-    connect (ui->scrollBox, &QCheckBox::stateChanged, this, &PrefDialog::prefScrollJumpWorkaround);
 
     ui->skipNonTextBox->setChecked (config.getSkipNonText());
     connect (ui->skipNonTextBox, &QCheckBox::stateChanged, this, &PrefDialog::prefSkipNontext);
@@ -522,12 +520,10 @@ void PrefDialog::onClosing()
 /*************************/
 void PrefDialog::showPrompt (const QString& str, bool temporary)
 {
-    static const QString style ("QLabel {background-color: #7d0000; color: white; border-radius: 3px; margin: 2px; padding: 5px;}");
     Config config = static_cast<FPsingleton*>(qApp)->getConfig();
     if (!str.isEmpty())
     { // show the provided message
         ui->promptLabel->setText ("<b>" + str + "</b>");
-        ui->promptLabel->setStyleSheet (style);
         if (temporary) // show it temporarily
         {
             if (!promptTimer_)
@@ -539,7 +535,6 @@ void PrefDialog::showPrompt (const QString& str, bool temporary)
                         && ui->tabWidget->currentIndex() == 3) // Shortcuts page
                     { // show the previous message if it exists
                         ui->promptLabel->setText (prevtMsg_);
-                        ui->promptLabel->setStyleSheet (style);
                     }
                     else showPrompt();
                 });
@@ -553,7 +548,6 @@ void PrefDialog::showPrompt (const QString& str, bool temporary)
              || sharedSearchHistory_ != config.getSharedSearchHistory())
     {
         ui->promptLabel->setText ("<b>" + tr ("Application restart is needed for changes to take effect.") + "</b>");
-        ui->promptLabel->setStyleSheet (style);
     }
     else if (darkBg_ != config.getDarkColScheme()
              || (darkBg_ && darkColValue_ != config.getDarkBgColorValue())
@@ -572,20 +566,17 @@ void PrefDialog::showPrompt (const QString& str, bool temporary)
                                                 : config.lightSyntaxColors()))
     {
         ui->promptLabel->setText ("<b>" + tr ("Window reopening is needed for changes to take effect.") + "</b>");
-        ui->promptLabel->setStyleSheet (style);
     }
     else
     {
         if (prevtMsg_.isEmpty()) // clear prompt
         {
             ui->promptLabel->clear();
-            ui->promptLabel->setStyleSheet ("QLabel {margin: 2px; padding: 5px;}");
+            ui->promptLabel->hide();
+            return;
         }
         else // show the previous message
-        {
             ui->promptLabel->setText (prevtMsg_);
-            ui->promptLabel->setStyleSheet (style);
-        }
     }
     ui->promptLabel->show();
 }
@@ -861,7 +852,7 @@ void PrefDialog::prefAutoBracket (int checked)
                 for (int j = 0; j < count; ++j)
                 {
                     qobject_cast< TabPage *>(singleton->Wins.at (i)->ui->tabWidget->widget (j))
-                            ->textEdit()->setAutoBracket (true);
+                        ->textEdit()->setAutoBracket (true);
                 }
             }
         }
@@ -877,7 +868,7 @@ void PrefDialog::prefAutoBracket (int checked)
                 for (int j = 0; j < count; ++j)
                 {
                     qobject_cast< TabPage *>(singleton->Wins.at (i)->ui->tabWidget->widget (j))
-                            ->textEdit()->setAutoBracket (false);
+                        ->textEdit()->setAutoBracket (false);
                 }
             }
         }
@@ -899,7 +890,7 @@ void PrefDialog::prefAutoReplace (int checked)
                 for (int j = 0; j < count; ++j)
                 {
                     qobject_cast< TabPage *>(singleton->Wins.at (i)->ui->tabWidget->widget (j))
-                            ->textEdit()->setAutoReplace (true);
+                        ->textEdit()->setAutoReplace (true);
                 }
             }
         }
@@ -915,7 +906,7 @@ void PrefDialog::prefAutoReplace (int checked)
                 for (int j = 0; j < count; ++j)
                 {
                     qobject_cast< TabPage *>(singleton->Wins.at (i)->ui->tabWidget->widget (j))
-                            ->textEdit()->setAutoReplace (false);
+                        ->textEdit()->setAutoReplace (false);
                 }
             }
         }
@@ -988,7 +979,7 @@ void PrefDialog::prefApplyDateFormat()
         for (int j = 0; j < count; ++j)
         {
             qobject_cast< TabPage *>(singleton->Wins.at (i)->ui->tabWidget->widget (j))
-                    ->textEdit()->setDateFormat (format);
+                ->textEdit()->setDateFormat (format);
         }
     }
 }
@@ -1189,7 +1180,7 @@ void PrefDialog::prefPastePaths()
         for (int j = 0; j < count; ++j)
         {
             qobject_cast< TabPage *>(singleton->Wins.at (i)->ui->tabWidget->widget (j))
-                    ->textEdit()->setPastePaths (pastePaths);
+                ->textEdit()->setPastePaths (pastePaths);
         }
     }
 }
@@ -1212,38 +1203,6 @@ void PrefDialog::prefRemoveTrailingSpaces (int checked)
         config.setRemoveTrailingSpaces (true);
     else if (checked == Qt::Unchecked)
         config.setRemoveTrailingSpaces (false);
-}
-/*************************/
-void PrefDialog::prefScrollJumpWorkaround (int checked)
-{
-    FPsingleton *singleton = static_cast<FPsingleton*>(qApp);
-    Config& config = singleton->getConfig();
-    if (checked == Qt::Checked)
-    {
-        config.setScrollJumpWorkaround (true);
-        for (int i = 0; i < singleton->Wins.count(); ++i)
-        {
-            int count = singleton->Wins.at (i)->ui->tabWidget->count();
-            for (int j = 0; j < count; ++j)
-            {
-                qobject_cast< TabPage *>(singleton->Wins.at (i)->ui->tabWidget->widget (j))
-                        ->textEdit()->setScrollJumpWorkaround (true);
-            }
-        }
-    }
-    else if (checked == Qt::Unchecked)
-    {
-        config.setScrollJumpWorkaround (false);
-        for (int i = 0; i < singleton->Wins.count(); ++i)
-        {
-            int count = singleton->Wins.at (i)->ui->tabWidget->count();
-            for (int j = 0; j < count; ++j)
-            {
-                qobject_cast< TabPage *>(singleton->Wins.at (i)->ui->tabWidget->widget (j))
-                        ->textEdit()->setScrollJumpWorkaround (false);
-            }
-        }
-    }
 }
 /*************************/
 void PrefDialog::prefSkipNontext (int checked)
