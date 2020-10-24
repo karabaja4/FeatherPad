@@ -36,6 +36,28 @@
 
 namespace FeatherPad {
 
+#if (QT_VERSION == QT_VERSION_CHECK(5,14,0))
+// To work around a nasty bug in Qt 5.14.0
+static QColor overlayColor (const QColor& bgCol, const QColor& overlayCol)
+{
+    if (!overlayCol.isValid()) return QColor(0,0,0);
+    if (!bgCol.isValid()) return overlayCol;
+
+    qreal a1 = overlayCol.alphaF();
+    if (a1 == 1.0) return overlayCol;
+    qreal a0  = bgCol.alphaF();
+    qreal a = (1.0 - a1) * a0 + a1;
+
+    QColor res;
+    res.setAlphaF(a);
+    res.setRedF (((1.0 - a1) * a0 * bgCol.redF() + a1 * overlayCol.redF()) / a);
+    res.setGreenF (((1.0 - a1) * a0 *bgCol.greenF() + a1 * overlayCol.greenF()) / a);
+    res.setBlueF (((1.0 - a1) * a0 * bgCol.blueF() + a1 * overlayCol.blueF()) / a);
+
+    return res;
+}
+#endif
+
 TextEdit::TextEdit (QWidget *parent, int bgColorValue) : QPlainTextEdit (parent)
 {
     prevAnchor_ = prevPos_ = -1;
@@ -92,6 +114,10 @@ TextEdit::TextEdit (QWidget *parent, int bgColorValue) : QPlainTextEdit (parent)
                 setPalette (p);
             }
         }
+        /* Use alpha in paintEvent to gray out the paragraph separators and
+           document terminators. The real text will be formatted by the highlgihter. */
+        separatorColor_ = Qt::white;
+        separatorColor_.setAlpha (90 - qRound (3 * static_cast<qreal>(darkValue_) / 5));
     }
     else
     {
@@ -117,12 +143,16 @@ TextEdit::TextEdit (QWidget *parent, int bgColorValue) : QPlainTextEdit (parent)
                 setPalette (p);
             }
         }
+        separatorColor_ = Qt::black;
+        separatorColor_.setAlpha (2 * qRound (static_cast<qreal>(bgColorValue) / 5) - 32);
     }
-    bgColorValue_ = bgColorValue;
     setCurLineHighlight (-1);
 
+#if (QT_VERSION == QT_VERSION_CHECK(5,14,0))
+    separatorColor_ = overlayColor (QColor (bgColorValue, bgColorValue, bgColorValue), separatorColor_);
+#endif
+
     resizeTimerId_ = 0;
-    updateTimerId_ = 0;
     selectionTimerId_ = 0;
     selectionHighlighting_ = false;
     highlightThisSelection_ = true;
@@ -844,6 +874,7 @@ void TextEdit::keyPressEvent (QKeyEvent *event)
                 cursor.setPosition (anch + 1, QTextCursor::MoveAnchor);
                 cursor.setPosition (pos + 1, QTextCursor::KeepAnchor);
                 cursor.endEditBlock();
+                highlightThisSelection_ = false;
                 /* WARNING: Why does putting "setTextCursor()" before "endEditBlock()"
                             cause a crash with huge lines? Most probably, a Qt bug. */
                 setTextCursor (cursor);
@@ -905,6 +936,7 @@ void TextEdit::keyPressEvent (QKeyEvent *event)
 
             if (event->key() == Qt::Key_Down)
             {
+                highlightThisSelection_ = false;
                 cursor.beginEditBlock();
                 cursor.setPosition (qMin (anch, pos));
                 cursor.movePosition (QTextCursor::StartOfBlock);
@@ -940,6 +972,7 @@ void TextEdit::keyPressEvent (QKeyEvent *event)
             }
             else
             {
+                highlightThisSelection_ = false;
                 cursor.beginEditBlock();
                 cursor.setPosition (qMax (anch, pos));
                 cursor.movePosition (QTextCursor::EndOfBlock);
@@ -1045,6 +1078,7 @@ void TextEdit::keyPressEvent (QKeyEvent *event)
         int newLines = cursor.selectedText().count (QChar (QChar::ParagraphSeparator));
         if (newLines > 0)
         {
+            highlightThisSelection_ = false;
             cursor.beginEditBlock();
             cursor.setPosition (qMin (cursor.anchor(), cursor.position())); // go to the first block
             cursor.movePosition (QTextCursor::StartOfBlock);
@@ -1087,6 +1121,7 @@ void TextEdit::keyPressEvent (QKeyEvent *event)
         QTextCursor cursor = textCursor();
         int newLines = cursor.selectedText().count (QChar (QChar::ParagraphSeparator));
         cursor.setPosition (qMin (cursor.anchor(), cursor.position()));
+        highlightThisSelection_ = false;
         cursor.beginEditBlock();
         cursor.movePosition (QTextCursor::StartOfBlock);
         for (int i = 0; i <= newLines; ++i)
@@ -1501,18 +1536,6 @@ void TextEdit::timerEvent (QTimerEvent *event)
         resizeTimerId_ = 0;
         emit resized();
     }
-    else if (event->timerId() == updateTimerId_)
-    {
-        killTimer (event->timerId());
-        updateTimerId_ = 0;
-        /* we use TextEdit's rect because the last rect that
-           updateRequest() provides after 50ms may be null */
-        emit updateRect (rect());
-        /* the text-edit may have been invisible before and so,
-           FPwin::matchBrackets() may have not be called for it */
-        if (!matchedBrackets_ && isVisible())
-            emit updateBracketMatching();
-    }
     else if (event->timerId() == selectionTimerId_)
     {
         killTimer (event->timerId());
@@ -1540,28 +1563,6 @@ static void fillBackground (QPainter *p, const QRectF &rect, QBrush brush, const
     p->fillRect (rect, brush);
     p->restore();
 }
-
-#if (QT_VERSION == QT_VERSION_CHECK(5,14,0))
-// To work around a nasty bug in Qt 5.14.0
-static QColor overlayColor (const QColor& bgCol, const QColor& overlayCol)
-{
-    if (!overlayCol.isValid()) return QColor(0,0,0);
-    if (!bgCol.isValid()) return overlayCol;
-
-    qreal a1 = overlayCol.alphaF();
-    if (a1 == 1.0) return overlayCol;
-    qreal a0  = bgCol.alphaF();
-    qreal a = (1.0 - a1) * a0 + a1;
-
-    QColor res;
-    res.setAlphaF(a);
-    res.setRedF (((1.0 - a1) * a0 * bgCol.redF() + a1 * overlayCol.redF()) / a);
-    res.setGreenF (((1.0 - a1) * a0 *bgCol.greenF() + a1 * overlayCol.greenF()) / a);
-    res.setBlueF (((1.0 - a1) * a0 * bgCol.blueF() + a1 * overlayCol.blueF()) / a);
-
-    return res;
-}
-#endif
 
 // Exactly like QPlainTextEdit::paintEvent(),
 // except for setting layout text option for RTL
@@ -1708,23 +1709,7 @@ void TextEdit::paintEvent (QPaintEvent *event)
                 if (opt.flags() & QTextOption::ShowLineAndParagraphSeparators)
                 {
                     painter.save();
-                    /* Use alpha with the painter to gray out the paragraph separators and
-                       document terminators. The real text will be formatted by the highlgihter. */
-                    QColor col;
-                    if (darkValue_ > -1)
-                    {
-                        col = Qt::white;
-                        col.setAlpha (90);
-                    }
-                    else
-                    {
-                        col = Qt::black;
-                        col.setAlpha (70);
-                    }
-#if (QT_VERSION == QT_VERSION_CHECK(5,14,0))
-                    col = overlayColor (QColor (bgColorValue_, bgColorValue_, bgColorValue_), col);
-#endif
-                    painter.setPen (col);
+                    painter.setPen (separatorColor_);
                 }
                 layout->draw (&painter, offset, selections, er);
                 if (opt.flags() & QTextOption::ShowLineAndParagraphSeparators)
@@ -1954,13 +1939,13 @@ void TextEdit::onUpdateRequesting (const QRect& /*rect*/, int dy)
     /* here, we're interested only in the vertical text scrolling
        (and, definitely, not in the blinking cursor updates) */
     if (dy == 0) return;
-
-    if (updateTimerId_)
-    {
-        killTimer (updateTimerId_);
-        updateTimerId_ = 0;
-    }
-    updateTimerId_ = startTimer (UPDATE_INTERVAL);
+    /* we ignore the rectangle because QPlainTextEdit::updateRequest
+       gives the whole rectangle when the text is scrolled */
+    emit updateRect();
+    /* because brackets may have been invisible before,
+       FPwin::matchBrackets() should be called here */
+    if (!matchedBrackets_ && isVisible())
+        emit updateBracketMatching();
 }
 /*************************/
 void TextEdit::onSelectionChanged()
@@ -2028,22 +2013,17 @@ void TextEdit::zooming (float range)
     adjustScrollbars();
 }
 /*************************/
-// Since the visible text rectangle is updated by a timer, if the text
-// page is first shown for a very short time (when, for example, the
-// active tab is changed quickly several times), "updateRect()" might
+// If the text page is first shown for a very short time (when, for example,
+// the active tab is changed quickly several times), "updateRect()" might
 // be emitted when the text page isn't visible, while "updateRequest()"
-// might not be emitted when it becomes visible again. That will result in
-// an incomplete syntax highlighting. Therefore, we restart "updateTimerId_"
-// whenever the text page is shown.
+// might not be emitted when it becomes visible again. That will result
+// in an incomplete syntax highlighting and, probably, bracket matching.
 void TextEdit::showEvent (QShowEvent *event)
 {
     QPlainTextEdit::showEvent (event);
-    if (updateTimerId_)
-    {
-        killTimer (updateTimerId_);
-        updateTimerId_ = 0;
-    }
-    updateTimerId_ = startTimer (UPDATE_INTERVAL);
+    emit updateRect();
+    if (!matchedBrackets_)
+        emit updateBracketMatching();
 }
 /*************************/
 void TextEdit::sortLines (bool reverse)
@@ -2258,7 +2238,7 @@ bool TextEdit::event (QEvent *event)
 {
     if (highlighter_
         && ((event->type() == QEvent::WindowDeactivate && hasFocus()) // another window is activated
-             || event->type() == QEvent::FocusOut)) // another widget has been focused
+            || event->type() == QEvent::FocusOut)) // another widget has been focused
     {
         viewport()->setCursor (Qt::IBeamCursor);
     }

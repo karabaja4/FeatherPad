@@ -47,6 +47,7 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QDesktopServices>
+#include <QPushButton>
 
 #ifdef HAS_X11
 #include "x11.h"
@@ -65,9 +66,11 @@ void BusyMaker::makeBusy() {
 }
 
 
-FPwin::FPwin (QWidget *parent):QMainWindow (parent), dummyWidget (nullptr), ui (new Ui::FPwin)
+FPwin::FPwin (QWidget *parent, bool standalone):QMainWindow (parent), dummyWidget (nullptr), ui (new Ui::FPwin)
 {
     ui->setupUi (this);
+
+    standalone_ = standalone;
 
     loadingProcesses_ = 0;
     rightClicked_ = -1;
@@ -141,6 +144,7 @@ FPwin::FPwin (QWidget *parent):QMainWindow (parent), dummyWidget (nullptr), ui (
     /* exceptions */
     defaultShortcuts_.insert (ui->actionSaveAllFiles, QKeySequence());
     defaultShortcuts_.insert (ui->actionSoftTab, QKeySequence());
+    defaultShortcuts_.insert (ui->actionStartCase, QKeySequence());
     defaultShortcuts_.insert (ui->actionUserDict, QKeySequence());
     defaultShortcuts_.insert (ui->actionFont, QKeySequence());
 
@@ -187,9 +191,13 @@ FPwin::FPwin (QWidget *parent):QMainWindow (parent), dummyWidget (nullptr), ui (
     ui->actionUTF_8->setChecked (true);
     ui->actionOther->setDisabled (true);
 
-    /* see TabBar::mouseMoveEvent() for the reason of this: */
-    if (!static_cast<FPsingleton*>(qApp)->isX11())
+    if (standalone_
+        /* since Wayland has a serious issue related to QDrag that interferes with
+           dropping tabs outside all windows, we don't enable tab DND without X11 */
+        || !static_cast<FPsingleton*>(qApp)->isX11())
+    {
         ui->tabWidget->noTabDND();
+    }
 
     connect (ui->actionNew, &QAction::triggered, this, &FPwin::newTab);
     connect (ui->tabWidget->tabBar(), &TabBar::addEmptyTab, this, &FPwin::newTab);
@@ -217,6 +225,7 @@ FPwin::FPwin (QWidget *parent):QMainWindow (parent), dummyWidget (nullptr), ui (
 
     connect (ui->actionUpperCase, &QAction::triggered, this, &FPwin::upperCase);
     connect (ui->actionLowerCase, &QAction::triggered, this, &FPwin::lowerCase);
+    connect (ui->actionStartCase, &QAction::triggered, this, &FPwin::startCase);
 
     /* because sort line actions don't have shortcuts,
        their state can be set when their menu is going to be shown */
@@ -311,6 +320,9 @@ FPwin::FPwin (QWidget *parent):QMainWindow (parent), dummyWidget (nullptr), ui (
     QShortcut *defaultsize = new QShortcut (QKeySequence (Qt::CTRL + Qt::SHIFT + Qt::Key_W), this);
     connect (fullscreen, &QShortcut::activated, [this] {setWindowState (windowState() ^ Qt::WindowFullScreen);});
     connect (defaultsize, &QShortcut::activated, this, &FPwin::defaultSize);
+
+    QShortcut *focusView = new QShortcut (QKeySequence (Qt::Key_Escape), this);
+    connect (focusView, &QShortcut::activated, this, &FPwin::focusView);
 
     /* this workaround, for the RTL bug in QPlainTextEdit, isn't needed
        because a better workaround is included in textedit.cpp */
@@ -551,17 +563,22 @@ void FPwin::applyConfigOnStarting()
     if (config.getRecentOpened())
         ui->menuOpenRecently->setTitle (tr ("&Recently Opened"));
     int recentNumber = config.getCurRecentFilesNumber();
-    QAction* recentAction = nullptr;
-    for (int i = 0; i < recentNumber; ++i)
+    if (recentNumber <= 0)
+        ui->menuOpenRecently->setEnabled (false);
+    else
     {
-        recentAction = new QAction (this);
-        recentAction->setVisible (false);
-        connect (recentAction, &QAction::triggered, this, &FPwin::newTabFromRecent);
-        ui->menuOpenRecently->addAction (recentAction);
+        QAction* recentAction = nullptr;
+        for (int i = 0; i < recentNumber; ++i)
+        {
+            recentAction = new QAction (this);
+            recentAction->setVisible (false);
+            connect (recentAction, &QAction::triggered, this, &FPwin::newTabFromRecent);
+            ui->menuOpenRecently->addAction (recentAction);
+        }
+        ui->menuOpenRecently->addAction (ui->actionClearRecent);
+        connect (ui->menuOpenRecently, &QMenu::aboutToShow, this, &FPwin::updateRecenMenu);
+        connect (ui->actionClearRecent, &QAction::triggered, this, &FPwin::clearRecentMenu);
     }
-    ui->menuOpenRecently->addAction (ui->actionClearRecent);
-    connect (ui->menuOpenRecently, &QMenu::aboutToShow, this, &FPwin::updateRecenMenu);
-    connect (ui->actionClearRecent, &QAction::triggered, this, &FPwin::clearRecentMenu);
 
     ui->actionSave->setEnabled (config.getSaveUnmodified()); // newTab() will be called after this
 
@@ -840,7 +857,7 @@ bool FPwin::hasAnotherDialog()
 /*************************/
 void FPwin::updateGUIForSingleTab (bool single)
 {
-    ui->actionDetachTab->setEnabled (!single);
+    ui->actionDetachTab->setEnabled (!single && !standalone_);
     ui->actionRightTab->setEnabled (!single);
     ui->actionLeftTab->setEnabled (!single);
     ui->actionLastTab->setEnabled (!single);
@@ -849,7 +866,8 @@ void FPwin::updateGUIForSingleTab (bool single)
 /*************************/
 void FPwin::deleteTabPage (int tabIndex, bool saveToList, bool closeWithLastTab)
 {
-    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (tabIndex));
+    TabPage *tabPage = qobject_cast<TabPage *>(ui->tabWidget->widget (tabIndex));
+    if (tabPage == nullptr) return;
     if (sidePane_ && !sideItems_.isEmpty())
     {
         if (QListWidgetItem *wi = sideItems_.key (tabPage))
@@ -1007,26 +1025,32 @@ bool FPwin::closeTabs (int first, int last, bool saveFilesList)
 void FPwin::copyTabFileName()
 {
     if (rightClicked_ < 0) return;
-    TabPage *tabPage;
+    TabPage *tabPage = nullptr;
     if (sidePane_)
         tabPage = sideItems_.value (sidePane_->listWidget()->item (rightClicked_));
     else
         tabPage = qobject_cast<TabPage*>(ui->tabWidget->widget (rightClicked_));
-    QString fname = tabPage->textEdit()->getFileName();
-    QApplication::clipboard()->setText (fname.section ('/', -1));
+    if (tabPage)
+    {
+        QString fname = tabPage->textEdit()->getFileName();
+        QApplication::clipboard()->setText (fname.section ('/', -1));
+    }
 }
 /*************************/
 void FPwin::copyTabFilePath()
 {
     if (rightClicked_ < 0) return;
-    TabPage *tabPage;
+    TabPage *tabPage = nullptr;
     if (sidePane_)
         tabPage = sideItems_.value (sidePane_->listWidget()->item (rightClicked_));
     else
         tabPage = qobject_cast<TabPage*>(ui->tabWidget->widget (rightClicked_));
-    QString str = tabPage->textEdit()->getFileName();
-    if (!str.isEmpty())
-        QApplication::clipboard()->setText (str);
+    if (tabPage)
+    {
+        QString str = tabPage->textEdit()->getFileName();
+        if (!str.isEmpty())
+            QApplication::clipboard()->setText (str);
+    }
 }
 /*************************/
 void FPwin::closeAllTabs()
@@ -1090,6 +1114,7 @@ FPwin::DOCSTATE FPwin::savePrompt (int tabIndex, bool noToAll)
 {
     DOCSTATE state = SAVED;
     TabPage *tabPage = qobject_cast<TabPage*>(ui->tabWidget->widget (tabIndex));
+    if (tabPage == nullptr) return state;
     TextEdit *textEdit = tabPage->textEdit();
     QString fname = textEdit->getFileName();
     bool isRemoved (!fname.isEmpty() && !QFile::exists (fname)); // don't check QFileInfo (fname).isFile()
@@ -1207,6 +1232,7 @@ void FPwin::enableWidgets (bool enable) const
 
         ui->actionUpperCase->setEnabled (false);
         ui->actionLowerCase->setEnabled (false);
+        ui->actionStartCase->setEnabled (false);
     }
 }
 /*************************/
@@ -1362,6 +1388,7 @@ TabPage* FPwin::createEmptyTab (bool setCurrent, bool allowNormalHighlighter)
     connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionCopy, &QAction::setEnabled);
     connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionUpperCase, &QAction::setEnabled);
     connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionLowerCase, &QAction::setEnabled);
+    connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionStartCase, &QAction::setEnabled);
 
     connect (textEdit, &TextEdit::fileDropped, this, &FPwin::newTabFromName);
     connect (textEdit, &TextEdit::zoomedOut, this, &FPwin::reformat);
@@ -1498,6 +1525,7 @@ void FPwin::editorContextMenu (const QPoint& p)
         {
             menu->addAction (ui->actionUpperCase);
             menu->addAction (ui->actionLowerCase);
+            menu->addAction (ui->actionStartCase);
             if (textEdit->textCursor().selectedText().contains (QChar (QChar::ParagraphSeparator)))
             {
                 menu->addSeparator();
@@ -1560,7 +1588,7 @@ void FPwin::clearRecentMenu()
 /*************************/
 void FPwin::reformat (TextEdit *textEdit)
 {
-    formatTextRect (textEdit->rect()); // in "syntax.cpp"
+    formatTextRect(); // in "syntax.cpp"
     if (!textEdit->getSearchedText().isEmpty())
         hlight(); // in "find.cpp"
     textEdit->selectionHlight();
@@ -1631,6 +1659,15 @@ void FPwin::defaultSize()
         textEdit->document()->setDefaultTextOption (opt);
     }
 }*/
+/*************************/
+void FPwin::focusView()
+{
+    if (TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget()))
+    {
+        if (!tabPage->hasPopup())
+            tabPage->textEdit()->setFocus();
+    }
+}
 /*************************/
 void FPwin::executeProcess()
 {
@@ -1913,13 +1950,6 @@ void FPwin::setTitle (const QString& fileName, int tabIndex)
         shownName.replace ("\n", " "); // no multi-line tab text
     }
 
-    shownName.replace ("&", "&&"); // single ampersand is for mnemonic
-    ui->tabWidget->setTabText (index, shownName);
-    if (isLink)
-        ui->tabWidget->setTabIcon (index, QIcon (":icons/link.svg"));
-    else
-        ui->tabWidget->setTabIcon (index, QIcon());
-
     if (sidePane_ && !sideItems_.isEmpty())
     {
         if (QListWidgetItem *wi = sideItems_.key (qobject_cast<TabPage*>(ui->tabWidget->widget (index))))
@@ -1931,6 +1961,14 @@ void FPwin::setTitle (const QString& fileName, int tabIndex)
                 wi->setIcon (QIcon());
         }
     }
+
+    shownName.replace ("&", "&&"); // single ampersand is for tab mnemonic
+    shownName.replace ('\t', ' ');
+    ui->tabWidget->setTabText (index, shownName);
+    if (isLink)
+        ui->tabWidget->setTabIcon (index, QIcon (":icons/link.svg"));
+    else
+        ui->tabWidget->setTabIcon (index, QIcon());
 }
 /*************************/
 void FPwin::enableSaving (bool modified)
@@ -1944,9 +1982,9 @@ void FPwin::asterisk (bool modified)
     if (inactiveTabModified_) return;
 
     int index = ui->tabWidget->currentIndex();
-
-    QString fname = qobject_cast< TabPage *>(ui->tabWidget->widget (index))
-                    ->textEdit()->getFileName();
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index));
+    if (tabPage == nullptr) return;
+    QString fname = tabPage->textEdit()->getFileName();
     QString shownName;
     if (fname.isEmpty())
     {
@@ -1960,22 +1998,16 @@ void FPwin::asterisk (bool modified)
                         + (fname.contains ("/") ? fname
                                                 : QFileInfo (fname).absolutePath() + "/" + fname));
     }
-    if (modified)
-        shownName.prepend ("*");
     shownName.replace ("\n", " ");
 
-    shownName.replace ("&", "&&");
-    ui->tabWidget->setTabText (index, shownName);
-
     if (sidePane_)
-    {
-        if (modified)
-        {
-            shownName.remove (0, 1);
-            shownName.append ("*");
-        }
-        sidePane_->listWidget()->currentItem()->setText (shownName);
-    }
+        sidePane_->listWidget()->currentItem()->setText (modified ? shownName + "*" : shownName);
+
+    if (modified)
+        shownName.prepend ("*");
+    shownName.replace ("&", "&&");
+    shownName.replace ('\t', ' ');
+    ui->tabWidget->setTabText (index, shownName);
 }
 /*************************/
 void FPwin::waitToMakeBusy()
@@ -2059,11 +2091,12 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
     static TabPage *firstPage = nullptr;
 
     TextEdit *textEdit;
-    TabPage *tabPage;
+    TabPage *tabPage = nullptr;
     if (ui->tabWidget->currentIndex() == -1)
         tabPage = createEmptyTab (!multiple, false);
     else
         tabPage = qobject_cast<TabPage*>(ui->tabWidget->currentWidget());
+    if (tabPage == nullptr) return;
     textEdit = tabPage->textEdit();
 
     bool openInCurrentTab (true);
@@ -2293,6 +2326,7 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
             ui->actionDelete->setDisabled (true);
             ui->actionUpperCase->setDisabled (true);
             ui->actionLowerCase->setDisabled (true);
+            ui->actionStartCase->setDisabled (true);
             if (config.getSaveUnmodified())
                 ui->actionSave->setDisabled (true);
         }
@@ -2300,6 +2334,7 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
         disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionDelete, &QAction::setEnabled);
         disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionUpperCase, &QAction::setEnabled);
         disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionLowerCase, &QAction::setEnabled);
+        disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionStartCase, &QAction::setEnabled);
     }
     else if (textEdit->isReadOnly())
         QTimer::singleShot (0, this, &FPwin::makeEditable);
@@ -2617,9 +2652,10 @@ void FPwin::enforceEncoding (QAction*)
        because encoding has no keyboard shortcut or tool button */
 
     int index = ui->tabWidget->currentIndex();
-    if (index == -1) return;
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index));
+    if (tabPage == nullptr) return;
 
-    TextEdit *textEdit = qobject_cast< TabPage *>(ui->tabWidget->widget (index))->textEdit();
+    TextEdit *textEdit = tabPage->textEdit();
     QString fname = textEdit->getFileName();
     if (!fname.isEmpty())
     {
@@ -2661,11 +2697,12 @@ void FPwin::reload()
     if (isLoading()) return;
 
     int index = ui->tabWidget->currentIndex();
-    if (index == -1) return;
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index));
+    if (tabPage == nullptr) return;
 
     if (savePrompt (index, false) != SAVED) return;
 
-    TextEdit *textEdit = qobject_cast< TabPage *>(ui->tabWidget->widget (index))->textEdit();
+    TextEdit *textEdit = tabPage->textEdit();
     QString fname = textEdit->getFileName();
     /* if the file is removed, close its tab to open a new one */
     if (!QFile::exists (fname))
@@ -2695,9 +2732,9 @@ bool FPwin::saveFile (bool keepSyntax)
     if (!isReady()) return false;
 
     int index = ui->tabWidget->currentIndex();
-    if (index == -1) return false;
-
     TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index));
+    if (tabPage == nullptr) return false;
+
     TextEdit *textEdit = tabPage->textEdit();
     QString fname = textEdit->getFileName();
     QString filter = tr ("All Files (*)");
@@ -3136,6 +3173,61 @@ void FPwin::lowerCase()
     }
 }
 /*************************/
+void FPwin::startCase()
+{
+    if (TabPage *tabPage = qobject_cast<TabPage*>(ui->tabWidget->currentWidget()))
+    {
+        TextEdit *textEdit = tabPage->textEdit();
+        if (!textEdit->isReadOnly())
+        {
+            bool showWarning = false;
+            QTextCursor cur = textEdit->textCursor();
+            int start = qMin (cur.anchor(), cur.position());
+            int end = qMax (cur.anchor(), cur.position());
+            if (end > start + 50000)
+            {
+                showWarning = true;
+                end = start + 50000;
+            }
+
+            cur.setPosition (start);
+            QString blockText = cur.block().text();
+            int blockPos = cur.block().position();
+            while (start > blockPos && !blockText.at (start - blockPos - 1).isSpace())
+                -- start;
+
+            cur.setPosition (end);
+            blockText = cur.block().text();
+            blockPos = cur.block().position();
+            while (end < blockPos + blockText.size() && !blockText.at (end - blockPos).isSpace())
+                ++ end;
+
+            cur.setPosition (start);
+            cur.setPosition (end, QTextCursor::KeepAnchor);
+            QString str = textEdit->locale().toLower (cur.selectedText());
+
+            start = 0;
+            QRegularExpressionMatch match;
+            /* QTextCursor::selectedText() uses "U+2029" instead of "\n" */
+            while ((start = str.indexOf (QRegularExpression ("[^\\s\\.\\x{2029}]+"), start, &match)) > -1)
+            {
+                str.replace (start, 1, str.at (start).toUpper());
+                start += match.capturedLength();
+            }
+
+            cur.beginEditBlock();
+            textEdit->setTextCursor (cur);
+            textEdit->insertPlainText (str);
+            textEdit->ensureCursorVisible();
+            cur.endEditBlock();
+
+            if (showWarning)
+                showWarningBar ("<center><b><big>" + tr ("The selected text was too long.") + "</big></b></center>\n"
+                                + "<center>" + tr ("It is not fully processed.") + "</center>");
+        }
+    }
+}
+/*************************/
 void FPwin::enableSortLines()
 {
     if (TabPage *tabPage = qobject_cast<TabPage*>(ui->tabWidget->currentWidget()))
@@ -3163,10 +3255,10 @@ void FPwin::makeEditable()
 {
     if (!isReady()) return;
 
-    int index = ui->tabWidget->currentIndex();
-    if (index == -1) return;
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget());
+    if (tabPage == nullptr) return;
 
-    TextEdit *textEdit = qobject_cast< TabPage *>(ui->tabWidget->widget (index))->textEdit();
+    TextEdit *textEdit = tabPage->textEdit();
     bool textIsSelected = textEdit->textCursor().hasSelection();
 
     textEdit->setReadOnly (false);
@@ -3195,10 +3287,12 @@ void FPwin::makeEditable()
     ui->actionDelete->setEnabled (textIsSelected);
     ui->actionUpperCase->setEnabled (textIsSelected);
     ui->actionLowerCase->setEnabled (textIsSelected);
+    ui->actionStartCase->setEnabled (textIsSelected);
     connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionCut, &QAction::setEnabled);
     connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionDelete, &QAction::setEnabled);
     connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionUpperCase, &QAction::setEnabled);
     connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionLowerCase, &QAction::setEnabled);
+    connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionStartCase, &QAction::setEnabled);
     if (config.getSaveUnmodified())
         ui->actionSave->setEnabled (true);
 }
@@ -3236,14 +3330,14 @@ void FPwin::onTabChanged (int index)
 // Called with a timeout after tab switching (changes the window title, sets action states, etc.)
 void FPwin::tabSwitch (int index)
 {
-    if (index == -1)
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index));
+    if (tabPage == nullptr)
     {
         setWindowTitle ("FeatherPad[*]");
         setWindowModified (false);
         return;
     }
 
-    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index));
     TextEdit *textEdit = tabPage->textEdit();
     if (!tabPage->isSearchBarVisible() && !sidePane_)
         textEdit->setFocus();
@@ -3313,6 +3407,7 @@ void FPwin::tabSwitch (int index)
     ui->actionDelete->setEnabled (!readOnly && textIsSelected);
     ui->actionUpperCase->setEnabled (!readOnly && textIsSelected);
     ui->actionLowerCase->setEnabled (!readOnly && textIsSelected);
+    ui->actionStartCase->setEnabled (!readOnly && textIsSelected);
 
     if (isScriptLang (textEdit->getProg()) && info.isExecutable())
         ui->actionRun->setVisible (config.getExecuteScripts());
@@ -3366,13 +3461,13 @@ void FPwin::fontDialog()
 {
     if (isLoading()) return;
 
-    int index = ui->tabWidget->currentIndex();
-    if (index == -1) return;
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget());
+    if (tabPage == nullptr) return;
 
     if (hasAnotherDialog()) return;
     updateShortcuts (true);
 
-    TextEdit *textEdit = qobject_cast< TabPage *>(ui->tabWidget->widget (index))->textEdit();
+    TextEdit *textEdit = tabPage->textEdit();
 
     QFont currentFont = textEdit->getDefaultFont();
     FontDialog fd (currentFont, this);
@@ -3467,10 +3562,9 @@ void FPwin::showHideSearch()
 {
     if (!isReady()) return;
 
-    int index = ui->tabWidget->currentIndex();
-    if (index == -1) return;
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget());
+    if (tabPage == nullptr) return;
 
-    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index));
     bool isFocused = tabPage->isSearchBarVisible() && tabPage->searchBarHasFocus();
 
     if (!isFocused)
@@ -3739,11 +3833,10 @@ void FPwin::docProp()
         return;
     }
 
-    int index = ui->tabWidget->currentIndex();
-    if (index == -1) return;
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget());
+    if (tabPage == nullptr) return;
 
-    statusMsgWithLineCount (qobject_cast< TabPage *>(ui->tabWidget->widget (index))
-                            ->textEdit()->document()->blockCount());
+    statusMsgWithLineCount (tabPage->textEdit()->document()->blockCount());
     for (int i = 0; i < ui->tabWidget->count(); ++i)
     {
         TextEdit *thisTextEdit = qobject_cast< TabPage *>(ui->tabWidget->widget (i))->textEdit();
@@ -3814,7 +3907,7 @@ void FPwin::showCursorPos()
     if (!posLabel) return;
 
     TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget());
-    if (!tabPage) return;
+    if (tabPage == nullptr) return;
 
     int pos = tabPage->textEdit()->textCursor().positionInBlock();
     QString charN;
@@ -3852,7 +3945,7 @@ void FPwin::enforceLang (QAction *action)
     if (!langButton) return;
 
     TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget());
-    if (!tabPage) return;
+    if (tabPage == nullptr) return;
 
     TextEdit *textEdit = tabPage->textEdit();
     QString lang = action->text();
@@ -3885,9 +3978,9 @@ void FPwin::updateWordInfo (int /*position*/, int charsRemoved, int charsAdded)
 {
     QToolButton *wordButton = ui->statusBar->findChild<QToolButton *>("wordButton");
     if (!wordButton) return;
-    int index = ui->tabWidget->currentIndex();
-    if (index == -1) return;
-    TextEdit *textEdit = qobject_cast< TabPage *>(ui->tabWidget->widget (index))->textEdit();
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget());
+    if (tabPage == nullptr) return;
+    TextEdit *textEdit = tabPage->textEdit();
     /* ensure that the signal comes from the active tab (when the info is going to be removed) */
     if (qobject_cast<QTextDocument*>(QObject::sender()) && QObject::sender() != textEdit->document())
         return;
@@ -3927,13 +4020,13 @@ void FPwin::filePrint()
 {
     if (isLoading()) return;
 
-    int index = ui->tabWidget->currentIndex();
-    if (index == -1) return;
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget());
+    if (tabPage == nullptr) return;
 
     if (hasAnotherDialog()) return;
     updateShortcuts (true);
 
-    TextEdit *textEdit = qobject_cast< TabPage *>(ui->tabWidget->widget (index))->textEdit();
+    TextEdit *textEdit = tabPage->textEdit();
 
     /* complete the syntax highlighting when printing
        because the whole document may not be highlighted */
@@ -4099,7 +4192,8 @@ void FPwin::detachTab()
         index = ui->tabWidget->indexOf (sideItems_.value (sidePane_->listWidget()->item (rightClicked_)));
     else
         index = ui->tabWidget->currentIndex();
-    if (index == -1 || ui->tabWidget->count() == 1)
+    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index));
+    if (tabPage == nullptr || ui->tabWidget->count() == 1)
     {
         ui->tabWidget->tabBar()->finishMouseMoveEvent();
         return;
@@ -4133,7 +4227,6 @@ void FPwin::detachTab()
             statusCurPos = true;
     }
 
-    TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index));
     TextEdit *textEdit = tabPage->textEdit();
 
     disconnect (textEdit, &TextEdit::resized, this, &FPwin::hlight);
@@ -4150,6 +4243,7 @@ void FPwin::detachTab()
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionDelete, &QAction::setEnabled);
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionUpperCase, &QAction::setEnabled);
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionLowerCase, &QAction::setEnabled);
+    disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionStartCase, &QAction::setEnabled);
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionCopy, &QAction::setEnabled);
     disconnect (textEdit, &QWidget::customContextMenuRequested, this, &FPwin::editorContextMenu);
     disconnect (textEdit, &TextEdit::zoomedOut, this, &FPwin::reformat);
@@ -4157,7 +4251,7 @@ void FPwin::detachTab()
     disconnect (textEdit, &TextEdit::updateBracketMatching, this, &FPwin::matchBrackets);
     disconnect (textEdit, &QPlainTextEdit::blockCountChanged, this, &FPwin::formatOnBlockChange);
     disconnect (textEdit, &TextEdit::updateRect, this, &FPwin::formatTextRect);
-    disconnect (textEdit, &TextEdit::resized, this, &FPwin::formatOnResizing);
+    disconnect (textEdit, &TextEdit::resized, this, &FPwin::formatTextRect);
 
     disconnect (textEdit->document(), &QTextDocument::contentsChange, this, &FPwin::updateWordInfo);
     disconnect (textEdit->document(), &QTextDocument::contentsChange, this, &FPwin::formatOnTextChange);
@@ -4209,13 +4303,21 @@ void FPwin::detachTab()
     if (dropTarget->sidePane_)
     {
         ListWidget *lw = dropTarget->sidePane_->listWidget();
-        if (textEdit->document()->isModified())
+        QString fname = textEdit->getFileName();
+        if (fname.isEmpty())
         {
-            tabText.remove (0, 1);
-            tabText.append ("*");
+            if (textEdit->getProg() == "help")
+                fname = "** " + tr ("Help") + " **";
+            else
+                fname = tr ("Untitled");
         }
+        else
+            fname = fname.section ('/', -1);
+        if (textEdit->document()->isModified())
+            fname.append ("*");
+        fname.replace ("\n", " ");
         ListWidgetItem *lwi = new ListWidgetItem (isLink ? QIcon (":icons/link.svg") : QIcon(),
-                                                  tabText, lw);
+                                                  fname, lw);
         lw->setToolTip (tooltip);
         dropTarget->sideItems_.insert (lwi, tabPage);
         lw->addItem (lwi);
@@ -4310,6 +4412,7 @@ void FPwin::detachTab()
         connect (textEdit, &QPlainTextEdit::copyAvailable, dropTarget->ui->actionDelete, &QAction::setEnabled);
         connect (textEdit, &QPlainTextEdit::copyAvailable, dropTarget->ui->actionUpperCase, &QAction::setEnabled);
         connect (textEdit, &QPlainTextEdit::copyAvailable, dropTarget->ui->actionLowerCase, &QAction::setEnabled);
+        connect (textEdit, &QPlainTextEdit::copyAvailable, dropTarget->ui->actionStartCase, &QAction::setEnabled);
     }
     connect (textEdit, &TextEdit::fileDropped, dropTarget, &FPwin::newTabFromName);
     connect (textEdit, &TextEdit::zoomedOut, dropTarget, &FPwin::reformat);
@@ -4371,6 +4474,11 @@ void FPwin::dropTab (const QString& str)
         ln = true;
 
     TabPage *tabPage = qobject_cast< TabPage *>(dragSource->ui->tabWidget->widget (index));
+    if (tabPage == nullptr)
+    {
+        ui->tabWidget->tabBar()->finishMouseMoveEvent();
+        return;
+    }
     TextEdit *textEdit = tabPage->textEdit();
 
     disconnect (textEdit, &TextEdit::resized, dragSource, &FPwin::hlight);
@@ -4387,6 +4495,7 @@ void FPwin::dropTab (const QString& str)
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, dragSource->ui->actionDelete, &QAction::setEnabled);
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, dragSource->ui->actionUpperCase, &QAction::setEnabled);
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, dragSource->ui->actionLowerCase, &QAction::setEnabled);
+    disconnect (textEdit, &QPlainTextEdit::copyAvailable, dragSource->ui->actionStartCase, &QAction::setEnabled);
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, dragSource->ui->actionCopy, &QAction::setEnabled);
     disconnect (textEdit, &QWidget::customContextMenuRequested, dragSource, &FPwin::editorContextMenu);
     disconnect (textEdit, &TextEdit::zoomedOut, dragSource, &FPwin::reformat);
@@ -4394,7 +4503,7 @@ void FPwin::dropTab (const QString& str)
     disconnect (textEdit, &TextEdit::updateBracketMatching, dragSource, &FPwin::matchBrackets);
     disconnect (textEdit, &QPlainTextEdit::blockCountChanged, dragSource, &FPwin::formatOnBlockChange);
     disconnect (textEdit, &TextEdit::updateRect, dragSource, &FPwin::formatTextRect);
-    disconnect (textEdit, &TextEdit::resized, dragSource, &FPwin::formatOnResizing);
+    disconnect (textEdit, &TextEdit::resized, dragSource, &FPwin::formatTextRect);
 
     disconnect (textEdit->document(), &QTextDocument::contentsChange, dragSource, &FPwin::updateWordInfo);
     disconnect (textEdit->document(), &QTextDocument::contentsChange, dragSource, &FPwin::formatOnTextChange);
@@ -4454,13 +4563,21 @@ void FPwin::dropTab (const QString& str)
     if (sidePane_)
     {
         ListWidget *lw = sidePane_->listWidget();
-        if (textEdit->document()->isModified())
+        QString fname = textEdit->getFileName();
+        if (fname.isEmpty())
         {
-            tabText.remove (0, 1);
-            tabText.append ("*");
+            if (textEdit->getProg() == "help")
+                fname = "** " + tr ("Help") + " **";
+            else
+                fname = tr ("Untitled");
         }
+        else
+            fname = fname.section ('/', -1);
+        if (textEdit->document()->isModified())
+            fname.append ("*");
+        fname.replace ("\n", " ");
         ListWidgetItem *lwi = new ListWidgetItem (isLink ? QIcon (":icons/link.svg") : QIcon(),
-                                                  tabText, lw);
+                                                  fname, lw);
         lw->setToolTip (tooltip);
         sideItems_.insert (lwi, tabPage);
         lw->addItem (lwi);
@@ -4549,6 +4666,7 @@ void FPwin::dropTab (const QString& str)
         connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionDelete, &QAction::setEnabled);
         connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionUpperCase, &QAction::setEnabled);
         connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionLowerCase, &QAction::setEnabled);
+        connect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionStartCase, &QAction::setEnabled);
     }
     connect (textEdit, &TextEdit::fileDropped, this, &FPwin::newTabFromName);
     connect (textEdit, &TextEdit::zoomedOut, this, &FPwin::reformat);
@@ -4672,8 +4790,11 @@ void FPwin::listContextMenu (const QPoint& p)
             menu.addAction (ui->actionCloseOther);
         }
         menu.addAction (ui->actionCloseAll);
-        menu.addSeparator();
-        menu.addAction (ui->actionDetachTab);
+        if (!standalone_)
+        {
+            menu.addSeparator();
+            menu.addAction (ui->actionDetachTab);
+        }
     }
     if (!fname.isEmpty())
     {
@@ -5395,10 +5516,12 @@ void FPwin::helpDoc()
     ui->actionDelete->setDisabled (true);
     ui->actionUpperCase->setDisabled (true);
     ui->actionLowerCase->setDisabled (true);
+    ui->actionStartCase->setDisabled (true);
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionCut, &QAction::setEnabled);
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionDelete, &QAction::setEnabled);
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionUpperCase, &QAction::setEnabled);
     disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionLowerCase, &QAction::setEnabled);
+    disconnect (textEdit, &QPlainTextEdit::copyAvailable, ui->actionStartCase, &QAction::setEnabled);
 
     index = ui->tabWidget->currentIndex();
     textEdit->setEncoding ("UTF-8");

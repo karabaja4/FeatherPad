@@ -62,7 +62,7 @@ class FPwin : public QMainWindow
     Q_OBJECT
 
 public:
-    explicit FPwin (QWidget *parent = nullptr);
+    explicit FPwin (QWidget *parent = nullptr, bool standalone = false);
     ~FPwin();
 
     bool isScriptLang (const QString& lang) const;
@@ -139,6 +139,7 @@ private slots:
     void selectAllText();
     void upperCase();
     void lowerCase();
+    void startCase();
     void enableSortLines();
     void sortLines();
     void makeEditable();
@@ -155,8 +156,7 @@ private slots:
     void toggleSyntaxHighlighting();
     void formatOnBlockChange (int) const;
     void formatOnTextChange (int, int charsRemoved, int charsAdded) const;
-    void formatTextRect (const QRect &rect) const;
-    void formatOnResizing() const;
+    void formatTextRect() const;
     void toggleWrapping();
     void toggleIndent();
     void replace();
@@ -173,6 +173,7 @@ private slots:
     void zoomOut();
     void zoomZero();
     void defaultSize();
+    void focusView();
     //void align();
     void manageSessions();
     void executeProcess();
@@ -284,6 +285,8 @@ private:
     QTimer *autoSaver_;
     QElapsedTimer autoSaverPause_;
     int autoSaverRemainingTime_;
+
+    bool standalone_; // only used internally
 };
 
 }
