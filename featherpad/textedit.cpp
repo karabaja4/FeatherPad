@@ -228,13 +228,7 @@ void TextEdit::setEditorFont (const QFont &f, bool setDefault)
     /* we want consistent tabs */
     QFontMetricsF metrics (f);
     QTextOption opt = document()->defaultTextOption();
-#if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
     opt.setTabStopDistance (metrics.horizontalAdvance (textTab_));
-#elif (QT_VERSION >= QT_VERSION_CHECK(5,10,0))
-    opt.setTabStopDistance (metrics.width (textTab_));
-#else
-    opt.setTabStop (metrics.width (textTab_));
-#endif
     document()->setDefaultTextOption (opt);
 
     /* the line number is bold only for the current line */
@@ -252,11 +246,7 @@ void TextEdit::setEditorFont (const QFont &f, bool setDefault)
     int maxW = 0;
     for (int i = 0; i < 10; ++i)
     {
-#if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
-        int w = QFontMetrics (F).horizontalAdvance (QString::number (i));
-#else
-        int w = QFontMetrics (F).width (QString::number (i));
-#endif
+        int w = QFontMetrics (F).horizontalAdvance (locale().toString (i));
         if (w > maxW)
         {
             maxW = w;
@@ -307,7 +297,7 @@ void TextEdit::showLineNumbers (bool show)
 /*************************/
 int TextEdit::lineNumberAreaWidth()
 {
-    QString digit = QString::number (widestDigit_);
+    QString digit = locale().toString (widestDigit_);
     QString num = digit;
     int max = qMax (1, blockCount());
     while (max >= 10)
@@ -317,11 +307,7 @@ int TextEdit::lineNumberAreaWidth()
     }
     QFont f = font();
     f.setBold (false);
-#if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
     return (6 + QFontMetrics (f).horizontalAdvance (num)); // 6 = 3 + 3 (-> lineNumberAreaPaintEvent)
-#else
-    return (6 + QFontMetrics (f).width (num));
-#endif
 }
 /*************************/
 void TextEdit::updateLineNumberAreaWidth (int /* newBlockCount */)
@@ -401,11 +387,7 @@ QString TextEdit::remainingSpaces (const QString& spaceTab, const QTextCursor& c
     QTextCursor tmp = cursor;
     QString txt = cursor.block().text().left (cursor.positionInBlock());
     QFontMetricsF fm = QFontMetricsF (document()->defaultFont());
-#if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
     qreal spaceL = fm.horizontalAdvance (" ");
-#else
-    qreal spaceL = fm.width (" ");
-#endif
     int n = 0, i = 0;
     while ((i = txt.indexOf("\t", i)) != -1)
     { // find tab widths in terms of spaces
@@ -442,11 +424,7 @@ QTextCursor TextEdit::backTabCursor (const QTextCursor& cursor, bool twoSpace) c
 
     QString txt = blockText.left (indx);
     QFontMetricsF fm = QFontMetricsF (document()->defaultFont());
-#if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
     qreal spaceL = fm.horizontalAdvance (" ");
-#else
-    qreal spaceL = fm.width (" ");
-#endif
     int n = 0, i = 0;
     while ((i = txt.indexOf("\t", i)) != -1)
     { // find tab widths in terms of spaces
@@ -717,18 +695,20 @@ void TextEdit::keyPressEvent (QKeyEvent *event)
                         {
                             if (!num.isEmpty())
                             {
+                                QLocale l = locale();
+                                l.setNumberOptions (QLocale::OmitGroupSeparator);
                                 QChar ch = blockText.at (i);
                                 if (ch.isSpace())
                                 { // non-letter and non-space character -> number -> space
                                     if (!prefix.isEmpty() && !prefix.at (prefix.size() - 1).isSpace())
-                                        num = locale().toString (locale().toInt (num) + 1) + ch;
+                                        num = l.toString (locale().toInt (num) + 1) + ch;
                                     else num = QString();
                                 }
                                 else if (i + 1 < curBlockPos
                                          && !ch.isLetterOrNumber() && !ch.isSpace()
                                          && blockText.at (i + 1).isSpace())
                                 { // number -> non-letter and non-space character -> space
-                                    num = locale().toString (locale().toInt (num) + 1) + ch + blockText.at (i + 1);
+                                    num = l.toString (locale().toInt (num) + 1) + ch + blockText.at (i + 1);
                                 }
                                 else num = QString();
                             }
@@ -1365,16 +1345,11 @@ void TextEdit::wheelEvent (QWheelEvent *event)
         return;
     }
 
-#if (QT_VERSION >= QT_VERSION_CHECK(5,12,0))
-        bool horizontal (event->angleDelta().x() != 0);
-#else
-        bool horizontal (event->orientation() == Qt::Horizontal);
-#endif
+    bool horizontal (event->angleDelta().x() != 0);
     if (event->modifiers() & Qt::ShiftModifier)
     { // line-by-line scrolling when Shift is pressed
         int delta = horizontal
                         ? event->angleDelta().x() : event->angleDelta().y();
-#if (QT_VERSION >= QT_VERSION_CHECK(5,12,0))
 #if (QT_VERSION >= QT_VERSION_CHECK(5,15,0))
         QWheelEvent e (event->position(),
                        event->globalPosition(),
@@ -1395,14 +1370,6 @@ void TextEdit::wheelEvent (QWheelEvent *event)
                        event->phase(),
                        false,
                        event->source());
-#else
-        QWheelEvent e (event->posF(),
-                       event->globalPosF(),
-                       delta / QApplication::wheelScrollLines(),
-                       event->buttons(),
-                       Qt::NoModifier,
-                       Qt::Vertical);
-#endif
         QCoreApplication::sendEvent (horizontal
                                          ? horizontalScrollBar()
                                          : verticalScrollBar(), &e);
@@ -1477,7 +1444,6 @@ void TextEdit::scrollWithInertia()
         else break;
     }
 
-#if (QT_VERSION >= QT_VERSION_CHECK(5,12,0))
     QWheelEvent e (QPointF(),
                    QPointF(),
                    QPoint(),
@@ -1486,25 +1452,7 @@ void TextEdit::scrollWithInertia()
                    Qt::NoModifier,
                    Qt::NoScrollPhase,
                    false);
-#else
-    QWheelEvent e (QPointF(),
-                   QPointF(),
-                   totalDelta,
-                   Qt::NoButton,
-                   Qt::NoModifier,
-                   Qt::Vertical);
-#endif
     QCoreApplication::sendEvent (verticalScrollBar(), &e);
-
-    /* update text selection if the left mouse button is pressed (-> QPlainTextEdit::timerEvent) */
-    if (QApplication::mouseButtons() & Qt::LeftButton)
-    {
-        const QPoint globalPos = QCursor::pos();
-        QPoint pos = viewport()->mapFromGlobal (globalPos);
-        QMouseEvent ev (QEvent::MouseMove, pos, viewport()->mapTo (viewport()->topLevelWidget(), pos), globalPos,
-                        Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-        mouseMoveEvent (&ev);
-    }
 
     if (queuedScrollSteps_.empty())
         scrollTimer_->stop();
@@ -1539,6 +1487,7 @@ void TextEdit::timerEvent (QTimerEvent *event)
     else if (event->timerId() == selectionTimerId_)
     {
         killTimer (event->timerId());
+        selectionTimerId_ = 0;
         selectionHlight();
     }
 }
@@ -1743,11 +1692,7 @@ void TextEdit::paintEvent (QPaintEvent *event)
                     int yBottom =  qRound (r.height() >= static_cast<qreal>(2) * fm.lineSpacing()
                                                ? yTop + fm.height()
                                                : r.bottomLeft().y() - static_cast<qreal>(1));
-#if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
                     qreal tabWidth = fm.horizontalAdvance (textTab_);
-#else
-                    qreal tabWidth = fm.width (textTab_);
-#endif
                     if (rtl)
                     {
                         qreal leftMost = cursorRect (cur).left();
@@ -1792,11 +1737,7 @@ void TextEdit::paintEvent (QPaintEvent *event)
                 QTextCursor cur = textCursor();
                 cur.setPosition (block.position());
                 QFontMetricsF fm = QFontMetricsF (document()->defaultFont());
-#if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
                 qreal rulerSpace = fm.horizontalAdvance (' ') * static_cast<qreal>(vLineDistance_);
-#else
-                qreal rulerSpace = fm.width (' ') * static_cast<qreal>(vLineDistance_);
-#endif
                 int yTop = qRound (r.topLeft().y());
                 int yBottom =  qRound (r.height() >= static_cast<qreal>(2) * fm.lineSpacing()
                                        ? yTop + fm.height()
@@ -1881,12 +1822,14 @@ void TextEdit::lineNumberAreaPaintEvent (QPaintEvent *event)
     int h = fontMetrics().height();
     QFont bf = font();
     bf.setBold (false);
+    QLocale l = locale();
+    l.setNumberOptions (QLocale::OmitGroupSeparator);
 
     while (block.isValid() && top <= event->rect().bottom())
     {
         if (block.isVisible() && bottom >= event->rect().top())
         {
-            QString number = QString::number (blockNumber + 1);
+            QString number = l.toString (blockNumber + 1);
             if (blockNumber == curBlock)
             {
                 lastCurrentLine_ = QRect (0, top, 1, top + h);
@@ -2185,7 +2128,7 @@ void TextEdit::mousePressEvent (QMouseEvent *event)
     QPlainTextEdit::mousePressEvent (event);
 
     if (highlighter_
-        && (event->button() & Qt::LeftButton)
+        && event->button() == Qt::LeftButton
         && (qApp->keyboardModifiers() & Qt::ControlModifier))
     {
         pressPoint_ = event->pos();
@@ -2195,19 +2138,21 @@ void TextEdit::mousePressEvent (QMouseEvent *event)
 void TextEdit::mouseReleaseEvent (QMouseEvent *event)
 {
     QPlainTextEdit::mouseReleaseEvent (event);
-
-    /* workaround for copying to the selection clipboard;
-       see TextEdit::copy()/cut() for an explanation */
-    QTextCursor cursor = textCursor();
-    if (cursor.hasSelection())
+    if (event->button() == Qt::LeftButton)
     {
-        QClipboard *cl = QApplication::clipboard();
-        if (cl->supportsSelection())
-            cl->setText (cursor.selection().toPlainText(), QClipboard::Selection);
+        /* workaround for copying to the selection clipboard;
+           see TextEdit::copy()/cut() for an explanation */
+        QTextCursor cursor = textCursor();
+        if (cursor.hasSelection())
+        {
+            QClipboard *cl = QApplication::clipboard();
+            if (cl->supportsSelection())
+                cl->setText (cursor.selection().toPlainText(), QClipboard::Selection);
+        }
     }
+    else return;
 
     if (!highlighter_
-        || !(event->button() & Qt::LeftButton)
         || !(qApp->keyboardModifiers() & Qt::ControlModifier)
         /* another key may also be pressed (-> keyPressEvent) */
         || viewport()->cursor().shape() != Qt::PointingHandCursor)

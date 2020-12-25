@@ -41,14 +41,16 @@ FPKeySequenceEdit::FPKeySequenceEdit (QWidget *parent) : QKeySequenceEdit (paren
 void FPKeySequenceEdit::keyPressEvent (QKeyEvent *event)
 { // also a workaround for a Qt bug that makes Meta a non-modifier
     clear(); // no multiple shortcuts
+    int k = event->key();
+    if ((event->modifiers() != Qt::NoModifier && event->modifiers() != Qt::KeypadModifier))
+    {
+        if (k == Qt::Key_Super_L || k == Qt::Key_Super_R)
+            return;
+    }
     /* don't create a shortcut without modifier because
        this is a text editor but make exceptions for Fx keys */
-    int k = event->key();
-    if ((k < Qt::Key_F1 || k > Qt::Key_F35)
-        && (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::KeypadModifier))
-    {
+    else if (k < Qt::Key_F1 || k > Qt::Key_F35)
         return;
-    }
     QKeySequenceEdit::keyPressEvent (event);
 }
 /*************************/
@@ -63,14 +65,21 @@ QWidget* Delegate::createEditor (QWidget *parent,
 /*************************/
 bool Delegate::eventFilter (QObject *object, QEvent *event)
 {
-    QWidget *editor = qobject_cast<QWidget*>(object);
+    FPKeySequenceEdit *editor = qobject_cast<FPKeySequenceEdit*>(object);
     if (editor && event->type() == QEvent::KeyPress)
     {
-        int k = static_cast<QKeyEvent *>(event)->key();
+        QKeyEvent *ke = static_cast<QKeyEvent *>(event);
+        int k = ke->key();
         if (k == Qt::Key_Return || k == Qt::Key_Enter)
         {
             emit QAbstractItemDelegate::commitData (editor);
             emit QAbstractItemDelegate::closeEditor (editor);
+            return true;
+        }
+        /* treat Tab and Backtab like other keys */
+        if (k == Qt::Key_Tab || k ==  Qt::Key_Backtab)
+        {
+            editor->pressKey (ke);
             return true;
         }
     }
@@ -320,7 +329,7 @@ PrefDialog::PrefDialog (QWidget *parent)
             {
                 const QString name = iter.key()->objectName();
                 DEFAULT_SHORTCUTS.insert (name, iter.value().toString());
-                OBJECT_NAMES.insert (iter.key()->text().remove ("&"), name);
+                OBJECT_NAMES.insert (iter.key()->text().remove (QRegularExpression ("\\s*\\(&[a-zA-Z0-9]\\)\\s*")).remove ("&"), name);
                 ++ iter;
             }
         }
@@ -539,7 +548,7 @@ void PrefDialog::showPrompt (const QString& str, bool temporary)
                     else showPrompt();
                 });
             }
-            promptTimer_->start (3300);
+            promptTimer_->start (5000);
         }
         else
             prevtMsg_ = "<b>" + str + "</b>";

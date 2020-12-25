@@ -1,5 +1,5 @@
 /*
- * Copyright (C) Pedram Pourang (aka Tsu Jan) 2014-2019 <tsujan2000@gmail.com>
+ * Copyright (C) Pedram Pourang (aka Tsu Jan) 2014-2020 <tsujan2000@gmail.com>
  *
  * FeatherPad is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -37,7 +37,8 @@ class WarningBar : public QWidget
 {
     Q_OBJECT
 public:
-    WarningBar (const QString& message, const int verticalOffset = 0, QWidget *parent = nullptr) : QWidget (parent) {
+    WarningBar (const QString& message, const int verticalOffset = 0, int timeout = 10, QWidget *parent = nullptr)
+        : QWidget (parent), timer_ (nullptr) {
         int anotherBar (false);
         if (parent)
         { // show only one warning bar at a time
@@ -55,12 +56,13 @@ public:
         message_ = message;
         vOffset_ = verticalOffset;
         isClosing_ = false;
+        mousePressed_ = false;
 
         /* make it like a translucent layer */
         setAutoFillBackground (true);
         QPalette p = palette();
         p.setColor (foregroundRole(), Qt::white);
-        p.setColor (backgroundRole(), QColor (125, 0, 0, 200));
+        p.setColor (backgroundRole(), timeout > 0 ? QColor (125, 0, 0, 200) : QColor (0, 70, 0, 210));
         setPalette (p);
 
         grid_ = new QGridLayout;
@@ -94,9 +96,32 @@ public:
         }
         else show();
 
-        /* auto-close after 10 seconds */
-        QTimer::singleShot (10000, this, &WarningBar::closeBar);
+        /* auto-close */
+        setTimeout (timeout);
+    }
 
+    void setTimeout (int timeout) { // can be used to change the timeout
+        if (timeout <= 0)
+        {
+            if (timer_ != nullptr)
+            {
+                timer_->stop();
+                delete timer_;
+                timer_ = nullptr;
+            }
+        }
+        else
+        {
+            if (timer_ == nullptr)
+            {
+                timer_ = new QTimer (this);
+                timer_->setSingleShot (true);
+                connect (timer_, &QTimer::timeout, this, [this]() {
+                    if (!mousePressed_) closeBar();
+                });
+            }
+            timer_->start (timeout * 1000);
+        }
     }
 
     bool eventFilter (QObject *o, QEvent *e) {
@@ -139,20 +164,30 @@ public slots:
         }
         else delete this;
     }
+    void closeBarOnScrolling (const QRect& /*rect*/, int dy) {
+        if (timer_ && dy != 0) closeBar();
+    }
 
 protected:
     void mousePressEvent (QMouseEvent *event) {
         QWidget::mousePressEvent (event);
-        QTimer::singleShot (0, this, &WarningBar::closeBar);
+        mousePressed_ = true;
+    }
+    void mouseReleaseEvent (QMouseEvent *event) {
+        QWidget::mouseReleaseEvent (event);
+        mousePressed_ = false;
+        if (timer_ != nullptr)
+            QTimer::singleShot (0, this, &WarningBar::closeBar);
     }
 
 private:
     QString message_;
     int vOffset_;
     bool isClosing_;
+    bool mousePressed_;
+    QTimer *timer_;
     QGridLayout *grid_;
     QPointer<QPropertyAnimation> animation_;
-
 };
 
 }

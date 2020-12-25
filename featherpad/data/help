@@ -2,11 +2,13 @@
 *   General   *
 ***************
 
-FeatherPad is a single-instance application by default, which means that all its windows share the same process and that process terminates only if all windows are closed.
+FeatherPad is a single-instance application by default; all its windows share the same process, which will terminate only if all windows are closed.
 
-However, if FeatherPad is started with the command-line option "--standalone" or "-s", it will have a single window with a separate process. That process will end if its single window is closed.
+However, if FeatherPad is started with the command-line option "--standalone" or "-s", it will have a single window with a separate process, independently of other FeatherPad windows.
 
-Rarely, where a standalone window is expected, "--standalone" or "-s" may be needed. For example, if you want to use FeatherPad as the "git" editor, you will need "featherpad -s" as the editor command (without quotes) because "git" may not work correctly with single-instance editors.
+Rarely, the standalone mode may be needed. For example, if you want to use FeatherPad as the "git" editor, you will need "featherpad -s" as the editor command because "git" does not work correctly with single-instance editors.
+
+The standalone mode is an exception to the window/tab managing rules that are explained in this document.
 
 Enter "featherpad --help" in a terminal emulator to see all command-line options.
 
@@ -28,9 +30,11 @@ Tabs can be reordered or detached by the mouse.
 
 If there is more than one tab, each one will have a right-click menu for closing its right or left tabs. With more than one tab, it is also possible to detach the active tab by clicking the related item on the File menu or with Ctrl+T.
 
-If a file is opened in a tab, the right-click menu of that tab will also contain two items for copying the name and path of the file.
+If a file is opened in a tab, the right-click menu of that tab will also contain two items for copying the name and path of the file as well as an item for opening its containing folder with the default file manager.
 
 For users' comfort, double clicking on an empty area of the tab-bar creates a new tab.
+
+There are (customizable) shortcuts for switching tabs in various ways (see the File menu) but Ctrl+Tab is not one of them because the Tab key is reserved for text editing (see Keyboard Shortcuts, near the end of this document).
 
 ***********************
 *   File Management   *
@@ -38,7 +42,7 @@ For users' comfort, double clicking on an empty area of the tab-bar creates a ne
 
 If there is a FeatherPad window on the current virtual desktop or viewport, so that more than half of its width as well as its height is visible, files will be opened as new tabs in it; otherwise, a new window will be created. Also, when the window on the current desktop/viewport has a modal dialog, another window is created.
 
-In this way, FeatherPad is aware of virtual desktops under most Linux desktop environments. However, there are exceptions (like non-X11 environments or Enlightenment).
+In this way, FeatherPad is aware of virtual desktops under most Linux desktop environments, although there are exceptions (like non-X11 environments or Enlightenment).
 
 Files are always opened after the active tab unless it is empty, in which case the first file will be opened in it. If a single file is opened, its tab will be activated but in the case of multiple files, the active tab will not change.
 
@@ -106,6 +110,8 @@ The 'Replace' docked window respects the settings for 'Match Case', 'Whole Word'
 The 'Replace' docked window is never shown without the search bar because the settings of the latter are needed by the former.
 
 Pressing the Escape key is the easiest way of focusing the editor's main view, without changing anything else.
+
+NOTE: The Escape key never clears the search/replacement entry because the user might want to resume searching/replacing later. To clear the search/replacement entry when it is focused, press Ctrl+K.
 
 ******************************
 *   Selection Highlighting   *
@@ -192,6 +198,7 @@ Useful Extra (Hidden) Shortcuts:
 
 Window:
 *********
+Escape              Focus editor's main view without changing anything else
 F11                 (Un-)Fullscreen
 Ctrl+Shift+W        Resize window to fixed size (700x500 by default but can be set in Preferences)
 

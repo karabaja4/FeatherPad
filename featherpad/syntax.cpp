@@ -96,6 +96,8 @@ void FPwin::setProgLang (TextEdit *textEdit)
             progLan = "qmake";
         else if (fname.endsWith (".tr") || fname.endsWith (".t") || fname.endsWith (".roff"))
             progLan = "troff";
+        else if (fname.endsWith (".tex") || fname.endsWith (".ltx") || fname.endsWith (".latex") || fname.endsWith (".lyx"))
+            progLan = "LaTeX";
         else if (fname.endsWith (".xml", Qt::CaseInsensitive) || fname.endsWith (".svg", Qt::CaseInsensitive) || fname.endsWith (".qrc")
                  || fname.endsWith (".meta4", Qt::CaseInsensitive) || fname.endsWith (".metalink", Qt::CaseInsensitive)
                  /*|| fname.endsWith (".ui")*/ || fname.endsWith (".rdf") || fname.endsWith (".docbook") || fname.endsWith (".fnx")
@@ -111,7 +113,8 @@ void FPwin::setProgLang (TextEdit *textEdit)
         else if (fname.endsWith (".kvconfig")
                  || fname.endsWith (".service") || fname.endsWith (".mount") || fname.endsWith (".timer") // systemd related
                  || baseName == "sources.list" || baseName == "sources.list.save"
-                 || baseName == "mimeinfo.cache" || baseName == "mimeapps.list" || baseName.endsWith ("-mimeapps.list")
+                 || baseName == "mimeinfo.cache" || baseName == "defaults.list"
+                 || baseName == "mimeapps.list" || baseName.endsWith ("-mimeapps.list")
                  || fname.endsWith (".pls", Qt::CaseInsensitive))
              progLan = "config";
         else if (fname.endsWith (".js") || fname.endsWith (".hx"))
@@ -196,6 +199,8 @@ void FPwin::setProgLang (TextEdit *textEdit)
                 progLan = "qmake";
             else if (mime == "text/troff")
                 progLan = "troff";
+            else if (mime == "text/x-tex" || mime == "application/x-lyx")
+                progLan = "LaTeX";
             else if (mime == "application/xml" || mime == "image/svg+xml" || mime == "application/x-designer"
                      || mime == "application/metalink4+xml" || mime == "application/metalink+xml"
                      || mime == "application/x-gtk-builder" || mime == "text/rdf+xml" || mime == "application/rdf+xml"
@@ -300,7 +305,10 @@ void FPwin::syntaxHighlighting (TextEdit *textEdit, bool highlight, const QStrin
            to wait until the text is completely loaded */
         QTimer::singleShot (0, textEdit, [this, textEdit]() {
             if (textEdit->isVisible())
+            {
+                formatTextRect(); // the text may be scrolled immediately after syntax highlighting (when reloading)
                 matchBrackets(); // in case the cursor is beside a bracket when the text is loaded
+            }
             connect (textEdit, &TextEdit::updateBracketMatching, this, &FPwin::matchBrackets);
             /* visible text may change on block removal */
             connect (textEdit, &QPlainTextEdit::blockCountChanged, this, &FPwin::formatOnBlockChange);

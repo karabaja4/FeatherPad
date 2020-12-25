@@ -1,4 +1,4 @@
-set(QT_MINIMUM_VERSION "5.7.1")
+set(QT_MINIMUM_VERSION "5.12.0")
 set(HUNSPELL_MINIMUM_VERSION "1.6")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
@@ -84,6 +84,7 @@ set(featherpad_SRCS
     highlighter-perl-regex.cpp
     vscrollbar.cpp
     loading.cpp
+    printing.cpp
     tabpage.cpp
     searchbar.cpp
     session.cpp
@@ -115,7 +116,7 @@ if(Qt5LinguistTools_FOUND)
   qt5_add_translation(QM_FILES ${TS_FILES})
   add_executable(featherpad ${featherpad_SRCS} ${featherpad_RESOURCES} ${EXTRA_HEADERS} ${DESKTOP_FILE} ${QM_FILES})
   if(HAIKU)
-    install(FILES ${QM_FILES} DESTINATION "${CMAKE_INSTALL_PREFIX}")
+    install(FILES ${QM_FILES} DESTINATION "${CMAKE_INSTALL_PREFIX}/translations")
   elseif(APPLE)
     SET_SOURCE_FILES_PROPERTIES(${QM_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/translations)
   elseif(UNIX)

@@ -1,3 +1,20 @@
+V0.17.0
+---------
+ * Consider the locale when showing line numbers and omit the group separator.
+ * Disable "Save with Encoding" with uneditable files.
+ * Fixed restoring of the current side-pane item after another item is closed by middle-clicking.
+ * Fixed a problem in closing side-pane items with filtering.
+ * Workarounds for Qt bugs in keyboard navigation inside a list view when some items are hidden.
+ * Made the warning bar more flexible by giving it a timeout, which can be 0 for permanent bars.
+ * Allow saving as root without a root instance when the user doesn't have the permission to write. Polkit's pkexec is used for gaining the root privileges.
+ * Distinguish Wayland from the lack of X11.
+ * Guarantee that the session dialog has focus after opening a session.
+ * Prevent killTimer() error warnings.
+ * Added LaTex to the recognized syntaxes.
+ * Workarounds for bugs in Qt's default printing. Qt can't handle dark color schemes and the reverse order with printing. Now, FeatherPad supports both.
+ * Do printing in a separate thread, so that, if it takes a long time, FeatherPad could still be used.
+ * Added simple support for gvfs' admin.
+
 V0.16.0
 ---------
  * Removed the redundant ampersand from the title of the replacement widget.

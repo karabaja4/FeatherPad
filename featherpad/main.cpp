@@ -43,7 +43,7 @@ void handleQuitSignals (const std::vector<int>& quitSignals)
 int main (int argc, char **argv)
 {
     const QString name = "FeatherPad";
-    const QString version = "0.16.0";
+    const QString version = "0.17.0";
     const QString option = QString::fromUtf8 (argv[1]);
     if (option == "--help" || option == "-h")
     {
@@ -111,7 +111,7 @@ int main (int argc, char **argv)
 
     QTranslator FPTranslator;
 #if defined(Q_OS_HAIKU)
-    FPTranslator.load ("featherpad_" + lang, "/translations");
+    FPTranslator.load ("featherpad_" + lang, QStringLiteral (DATADIR) + "/../translations");
 #elif defined(Q_OS_MAC)
     FPTranslator.load ("featherpad_" + lang, singleton.applicationDirPath() + QStringLiteral ("/../Resources/translations/"));
 #else

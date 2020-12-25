@@ -29,12 +29,13 @@
 #include "session.h"
 #include "fontDialog.h"
 #include "loading.h"
+#include "printing.h"
 #include "warningbar.h"
 #include "svgicons.h"
 
 #include <QPrintDialog>
 #include <QToolTip>
-//#include <QScreen>
+#include <QScreen>
 #include <QWindow>
 #include <QScrollBar>
 #include <QWidgetAction>
@@ -52,6 +53,8 @@
 #ifdef HAS_X11
 #include "x11.h"
 #endif
+
+#define MAX_LAST_WIN_FILES 50
 
 namespace FeatherPad {
 
@@ -72,6 +75,8 @@ FPwin::FPwin (QWidget *parent, bool standalone):QMainWindow (parent), dummyWidge
 
     standalone_ = standalone;
 
+    locked_ = false;
+    closePreviousPages_ = false;
     loadingProcesses_ = 0;
     rightClicked_ = -1;
     busyThread_ = nullptr;
@@ -205,15 +210,15 @@ FPwin::FPwin (QWidget *parent, bool standalone):QMainWindow (parent), dummyWidge
     connect (ui->actionRightTab, &QAction::triggered, this, &FPwin::nextTab);
     connect (ui->actionLeftTab, &QAction::triggered, this, &FPwin::previousTab);
     connect (ui->actionLastActiveTab, &QAction::triggered, this, &FPwin::lastActiveTab);
-    connect (ui->actionClose, &QAction::triggered, this, &FPwin::closeTab);
+    connect (ui->actionClose, &QAction::triggered, this, &FPwin::closePage);
     connect (ui->tabWidget, &QTabWidget::tabCloseRequested, this, &FPwin::closeTabAtIndex);
     connect (ui->actionOpen, &QAction::triggered, this, &FPwin::fileOpen);
     connect (ui->actionReload, &QAction::triggered, this, &FPwin::reload);
     connect (aGroup_, &QActionGroup::triggered, this, &FPwin::enforceEncoding);
-    connect (ui->actionSave, &QAction::triggered, [=]{saveFile (false);});
+    connect (ui->actionSave, &QAction::triggered, this, [=]{saveFile (false);});
     connect (ui->actionSaveAs, &QAction::triggered, this, [=]{saveFile (false);});
-    connect (ui->actionSaveAllFiles, &QAction::triggered, this, [=]{saveAllFiles (true);});
     connect (ui->actionSaveCodec, &QAction::triggered, this, [=]{saveFile (false);});
+    connect (ui->actionSaveAllFiles, &QAction::triggered, this, [=]{saveAllFiles (true);});
 
     connect (ui->actionCut, &QAction::triggered, this, &FPwin::cutText);
     connect (ui->actionCopy, &QAction::triggered, this, &FPwin::copyText);
@@ -253,10 +258,10 @@ FPwin::FPwin (QWidget *parent, bool standalone):QMainWindow (parent), dummyWidge
     connect (ui->tabWidget->tabBar(), &QWidget::customContextMenuRequested, this, &FPwin::tabContextMenu);
     connect (ui->actionCopyName, &QAction::triggered, this, &FPwin::copyTabFileName);
     connect (ui->actionCopyPath, &QAction::triggered, this, &FPwin::copyTabFilePath);
-    connect (ui->actionCloseAll, &QAction::triggered, this, &FPwin::closeAllTabs);
-    connect (ui->actionCloseRight, &QAction::triggered, this, &FPwin::closeNextTabs);
-    connect (ui->actionCloseLeft, &QAction::triggered, this, &FPwin::closePreviousTabs);
-    connect (ui->actionCloseOther, &QAction::triggered, this, &FPwin::closeOtherTabs);
+    connect (ui->actionCloseAll, &QAction::triggered, this, &FPwin::closeAllPages);
+    connect (ui->actionCloseRight, &QAction::triggered, this, &FPwin::closeNextPages);
+    connect (ui->actionCloseLeft, &QAction::triggered, this, &FPwin::closePreviousPages);
+    connect (ui->actionCloseOther, &QAction::triggered, this, &FPwin::closeOtherPages);
 
     connect (ui->actionFont, &QAction::triggered, this, &FPwin::fontDialog);
 
@@ -289,7 +294,7 @@ FPwin::FPwin (QWidget *parent, bool standalone):QMainWindow (parent), dummyWidge
 
     connect (this, &FPwin::finishedLoading, [this] {
         if (sidePane_)
-            sidePane_->listWidget()->scrollToItem (sidePane_->listWidget()->currentItem());
+            sidePane_->listWidget()->scrollToCurrentItem();
     });
     ui->actionSidePane->setAutoRepeat (false); // don't let UI change too rapidly
     connect (ui->actionSidePane, &QAction::triggered, [this] {toggleSidePane();});
@@ -349,11 +354,12 @@ FPwin::~FPwin()
 /*************************/
 void FPwin::closeEvent (QCloseEvent *event)
 {
-    bool keep = closeTabs (-1, -1, true);
+    bool keep = locked_ || closePages (-1, -1, true);
     if (keep)
     {
         event->ignore();
-        lastWinFilesCur_.clear(); // just a precaution; it's done at closeTabs()
+        if (!locked_)
+            lastWinFilesCur_.clear(); // just a precaution; it's done at closePages()
     }
     else
     {
@@ -390,7 +396,7 @@ void FPwin::toggleSidePane()
         sizes << sp * mult << (100 - sp) * mult;
         ui->splitter->setSizes (sizes);
         connect (sidePane_->listWidget(), &QWidget::customContextMenuRequested, this, &FPwin::listContextMenu);
-        connect (sidePane_->listWidget(), &QListWidget::currentItemChanged, this, &FPwin::changeTab);
+        connect (sidePane_->listWidget(), &ListWidget::currentItemUpdated, this, &FPwin::changeTab);
         connect (sidePane_->listWidget(), &ListWidget::closeSidePane, this, &FPwin::toggleSidePane);
         connect (sidePane_->listWidget(), &ListWidget::closeItem, [this](QListWidgetItem* item) {
             if (!sideItems_.isEmpty())
@@ -432,7 +438,7 @@ void FPwin::toggleSidePane()
                 if (i == curIndex)
                     lw->setCurrentItem (lwi);
             }
-            sidePane_->listWidget()->scrollTo (sidePane_->listWidget()->currentIndex());
+            sidePane_->listWidget()->scrollToCurrentItem();
             updateShortcuts (false);
         }
 
@@ -699,11 +705,12 @@ void FPwin::addRemoveLangBtn (bool add)
     { // no "url" for the language button
         langList << "c" << "cmake" << "config" << "cpp" << "css"
                  << "dart" << "deb" << "desktop" << "diff" << "fountain"
-                 << "html" << "javascript" << "log" << "lua" << "m3u"
-                 << "markdown" << "makefile" << "perl" << "php" << "python"
-                 << "qmake" << "qml" << "reST" << "ruby" << "scss"
-                 << "sh" << "troff" << "theme" << "xml" << "yaml";
-        langList.sort();
+                 << "html" << "javascript" << "LaTeX" << "log" << "lua"
+                 << "m3u" << "markdown" << "makefile" << "perl" << "php"
+                 << "python" << "qmake" << "qml" << "reST" << "ruby"
+                 << "scss" << "sh" << "troff" << "theme" << "xml"
+                 << "yaml";
+        langList.sort (Qt::CaseInsensitive);
     }
 
     QToolButton *langButton = ui->statusBar->findChild<QToolButton *>("langButton");
@@ -837,8 +844,7 @@ bool FPwin::hasAnotherDialog()
             QList<QDialog*> dialogs = win->findChildren<QDialog*>();
             for (int j = 0; j < dialogs.count(); ++j)
             {
-                if (dialogs.at (j)->objectName() != "processDialog"
-                    && dialogs.at (j)->objectName() != "sessionDialog")
+                if (dialogs.at (j)->isModal())
                 {
                     res = true;
                     break;
@@ -850,7 +856,8 @@ bool FPwin::hasAnotherDialog()
     if (res)
     {
         showWarningBar ("<center><b><big>" + tr ("Another FeatherPad window has a modal dialog!") + "</big></b></center>"
-                        + "<center>" + tr ("Please attend to that window or just close its dialog!") + "</center>");
+                        + "<center>" + tr ("Please attend to that window or just close its dialog!") + "</center>",
+                        15);
     }
     return res;
 }
@@ -905,9 +912,13 @@ void FPwin::deleteTabPage (int tabIndex, bool saveToList, bool closeWithLastTab)
 // If both "first" and "last" are negative, all tabs will be closed.
 // The case, when they're both greater than -1, is covered but not used anywhere.
 // Tabs/rows are always closed from right/bottom to left/top.
-bool FPwin::closeTabs (int first, int last, bool saveFilesList)
+bool FPwin::closePages (int first, int last, bool saveFilesList)
 {
-    if (!isReady()) return true;
+    if (!isReady())
+    {
+        closePreviousPages_ = false;
+        return true;
+    }
 
     pauseAutoSaving (true);
 
@@ -917,13 +928,13 @@ bool FPwin::closeTabs (int first, int last, bool saveFilesList)
     if (hasSideList)
     {
         int cur = sidePane_->listWidget()->currentRow();
-        if (!(first < cur && (cur < last || last == -1)))
+        if (!(first < cur && (cur < last || last < 0)))
             curItem = sidePane_->listWidget()->currentItem();
     }
     else
     {
         int cur = ui->tabWidget->currentIndex();
-        if (!(first < cur && (cur < last || last == -1)))
+        if (!(first < cur && (cur < last || last < 0)))
             curPage = qobject_cast<TabPage*>(ui->tabWidget->currentWidget());
     }
     bool keep = false;
@@ -944,14 +955,14 @@ bool FPwin::closeTabs (int first, int last, bool saveFilesList)
             break;
         int tabIndex = hasSideList ? ui->tabWidget->indexOf (sideItems_.value (sidePane_->listWidget()->item (index)))
                                    : index;
-        if (first == index - 1) // only one tab to be closed
-            state = savePrompt (tabIndex, false);
+        if (first == index - 1 && !closePreviousPages_) // only one tab to be closed
+            state = savePrompt (tabIndex, false, first, last, closing);
         else
-            state = savePrompt (tabIndex, true); // with a "No to all" button
+            state = savePrompt (tabIndex, true, first, last, closing); // with a "No to all" button
         switch (state) {
         case SAVED: // close this tab and go to the next one on the left
             keep = false;
-            if (lastWinFilesCur_.size() >= 50) // never remember more than 50 files
+            if (lastWinFilesCur_.size() >= MAX_LAST_WIN_FILES) // never remember more than 50 files
                 saveFilesList = false;
             deleteTabPage (tabIndex, saveFilesList, !closing);
 
@@ -971,14 +982,15 @@ bool FPwin::closeTabs (int first, int last, bool saveFilesList)
             break;
         case UNDECIDED: // stop quitting (cancel or can't save)
             keep = true;
-            lastWinFilesCur_.clear();
+            if (!locked_)
+                lastWinFilesCur_.clear();
             break;
-        case DISCARDED: // no to all: close all tabs (and quit)
+        case DISCARDED: // no to all: close all tabs (and, probably, quit)
             keep = false;
             while (index > first)
             {
                 if (last == 0) break;
-                if (lastWinFilesCur_.size() >= 50)
+                if (lastWinFilesCur_.size() >= MAX_LAST_WIN_FILES)
                     saveFilesList = false;
                 deleteTabPage (tabIndex, saveFilesList, !closing);
 
@@ -991,16 +1003,45 @@ bool FPwin::closeTabs (int first, int last, bool saveFilesList)
                 }
                 tabIndex = hasSideList ? ui->tabWidget->indexOf (sideItems_.value (sidePane_->listWidget()->item (index)))
                                        : index;
+            }
+            count = ui->tabWidget->count();
+            if (count == 0)
+            {
+                ui->actionReload->setDisabled (true);
+                ui->actionSave->setDisabled (true);
+                enableWidgets (false);
+            }
+            else if (count == 1)
+                updateGUIForSingleTab (true);
 
-                count = ui->tabWidget->count();
-                if (count == 0)
+            if (closePreviousPages_)
+            { // continue closing previous pages without prompt
+                closePreviousPages_ = false;
+                if (first > 0)
                 {
-                    ui->actionReload->setDisabled (true);
-                    ui->actionSave->setDisabled (true);
-                    enableWidgets (false);
+                    index = first - 1;
+                    while (index > -1)
+                    {
+                        tabIndex = hasSideList ? ui->tabWidget->indexOf (sideItems_.value (sidePane_->listWidget()->item (index)))
+                                               : index;
+                        if (lastWinFilesCur_.size() >= MAX_LAST_WIN_FILES)
+                            saveFilesList = false;
+                        deleteTabPage (tabIndex, saveFilesList, !closing);
+                        --index;
+                    }
+                    count = ui->tabWidget->count();
+                    if (count == 0) // impossible
+                    {
+                        ui->actionReload->setDisabled (true);
+                        ui->actionSave->setDisabled (true);
+                        enableWidgets (false);
+                    }
+                    else if (count == 1) // always true
+                        updateGUIForSingleTab (true);
                 }
-                else if (count == 1)
-                    updateGUIForSingleTab (true);
+                unbusy();
+                pauseAutoSaving (false);
+                return false;
             }
             break;
         default:
@@ -1015,6 +1056,11 @@ bool FPwin::closeTabs (int first, int last, bool saveFilesList)
             ui->tabWidget->setCurrentWidget (curPage);
         else if (curItem)
             sidePane_->listWidget()->setCurrentItem (curItem);
+        if (closePreviousPages_)
+        { // continue closing previous pages
+            closePreviousPages_ = false;
+            return closePages (-1, first);
+        }
     }
 
     pauseAutoSaving (false);
@@ -1053,30 +1099,32 @@ void FPwin::copyTabFilePath()
     }
 }
 /*************************/
-void FPwin::closeAllTabs()
+void FPwin::closeAllPages()
 {
-    closeTabs (-1, -1);
+    closePages (-1, -1);
 }
 /*************************/
-void FPwin::closeNextTabs()
+void FPwin::closeNextPages()
 {
-    closeTabs (rightClicked_, -1);
+    closePages (rightClicked_, -1);
 }
 /*************************/
-void FPwin::closePreviousTabs()
+void FPwin::closePreviousPages()
 {
-    closeTabs (-1, rightClicked_);
+    closePages (-1, rightClicked_);
 }
 /*************************/
-void FPwin::closeOtherTabs()
+void FPwin::closeOtherPages()
 {
-    if (!closeTabs (rightClicked_, -1))
-        closeTabs (-1, rightClicked_);
+    /* NOTE: Because saving as root is possible, we can't close the previous pages
+             here. They will be closed by closePages() or saveAsRoot() if needed. */
+    closePreviousPages_ = true;
+    closePages (rightClicked_, -1);
 }
 /*************************/
 void FPwin::dragEnterEvent (QDragEnterEvent *event)
 {
-    if (findChildren<QDialog *>().count() > 0)
+    if (locked_ || findChildren<QDialog *>().count() > 0)
         return;
     if (event->mimeData()->hasUrls())
         event->acceptProposedAction();
@@ -1090,6 +1138,7 @@ void FPwin::dragEnterEvent (QDragEnterEvent *event)
 /*************************/
 void FPwin::dropEvent (QDropEvent *event)
 {
+    if (locked_) return;
     if (event->mimeData()->hasFormat ("application/featherpad-tab"))
         dropTab (QString::fromUtf8 (event->mimeData()->data ("application/featherpad-tab").constData()));
     else
@@ -1097,11 +1146,18 @@ void FPwin::dropEvent (QDropEvent *event)
         const QList<QUrl> urlList = event->mimeData()->urls();
         bool multiple (urlList.count() > 1 || isLoading());
         for (const QUrl &url : urlList)
-            newTabFromName (url.adjusted (QUrl::NormalizePathSegments) // KDE may give a double slash
-                               .toLocalFile(),
-                            0,
-                            0,
-                            multiple);
+        {
+            QString file;
+            QString scheme = url.scheme();
+            if (scheme == "admin") // gvfs' "admin:///"
+                file = url.adjusted (QUrl::NormalizePathSegments).path();
+            else if (scheme == "file" || scheme.isEmpty())
+                file = url.adjusted (QUrl::NormalizePathSegments)  // KDE may give a double slash
+                          .toLocalFile();
+            else
+                continue;
+            newTabFromName (file, 0, 0, multiple);
+        }
     }
 
     event->acceptProposedAction();
@@ -1110,7 +1166,13 @@ void FPwin::dropEvent (QDropEvent *event)
 // This method checks if there's any text that isn't saved under a tab and,
 // if there is, it activates the tab and shows an appropriate prompt dialog.
 // "tabIndex" is always the tab index and not the item row (in the side-pane).
-FPwin::DOCSTATE FPwin::savePrompt (int tabIndex, bool noToAll)
+
+// The other variables are only for saveAsRoot(): "first and "last" determine
+// the range of indexes/rows that should be closed and "curItem"/"curPage" is
+// the item/tab that should be made current in side-pane/tab-bar again.
+FPwin::DOCSTATE FPwin::savePrompt (int tabIndex, bool noToAll,
+                                   int first, int last, bool closingWindow,
+                                   QListWidgetItem *curItem, TabPage *curPage)
 {
     DOCSTATE state = SAVED;
     TabPage *tabPage = qobject_cast<TabPage*>(ui->tabWidget->widget (tabIndex));
@@ -1120,8 +1182,12 @@ FPwin::DOCSTATE FPwin::savePrompt (int tabIndex, bool noToAll)
     bool isRemoved (!fname.isEmpty() && !QFile::exists (fname)); // don't check QFileInfo (fname).isFile()
     if (textEdit->document()->isModified() || isRemoved)
     {
-        unbusy(); // made busy at closeTabs()
-        if (hasAnotherDialog()) return UNDECIDED; // cancel
+        unbusy(); // made busy at closePages()
+        if (hasAnotherDialog())
+        { // cancel
+            closePreviousPages_ = false;
+            return UNDECIDED;
+        }
 
         if (tabIndex != ui->tabWidget->currentIndex())
         { // switch to the page that needs attention
@@ -1162,13 +1228,18 @@ FPwin::DOCSTATE FPwin::savePrompt (int tabIndex, bool noToAll)
                      y() + height()/2 - msgBox.height()/ 2);*/
         switch (msgBox.exec()) {
         case QMessageBox::Save:
-            if (!saveFile (true))
+            if (!saveFile (true, first, last, closingWindow, curItem, curPage))
+            {
                 state = UNDECIDED;
+                /* NOTE: closePreviousPages_ is set to false by saveFile() if there is no
+                         root saving; otherwise, it's set by saveAsRoot() appropriately. */
+            }
             break;
         case QMessageBox::Discard:
             break;
         case QMessageBox::Cancel:
             state = UNDECIDED;
+            closePreviousPages_ = false;
             break;
         case QMessageBox::NoToAll:
             state = DISCARDED;
@@ -1209,8 +1280,8 @@ void FPwin::enableWidgets (bool enable) const
     ui->actionClose->setEnabled (enable);
     ui->actionSaveAs->setEnabled (enable);
     ui->actionSaveAllFiles->setEnabled (enable);
-    ui->menuEncoding->setEnabled (enable);
     ui->actionSaveCodec->setEnabled (enable);
+    ui->menuEncoding->setEnabled (enable);
     ui->actionFont->setEnabled (enable);
     ui->actionDoc->setEnabled (enable);
     ui->actionPrint->setEnabled (enable);
@@ -1422,14 +1493,17 @@ TabPage* FPwin::createEmptyTab (bool setCurrent, bool allowNormalHighlighter)
         textEdit->setFocus();
     }
 
-    /* this isn't enough for unshading under all WMs */
-    /*if (isMinimized())
-        setWindowState (windowState() & (~Qt::WindowMinimized | Qt::WindowActive));*/
+    if (setCurrent)
+        stealFocus();
+    else if (isMinimized())
+        setWindowState ((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
 #ifdef HAS_X11
-    if (static_cast<FPsingleton*>(qApp)->isX11() && isWindowShaded (winId()))
-        unshadeWindow (winId());
+    else if (static_cast<FPsingleton*>(qApp)->isX11())
+    {
+        if (isWindowShaded (winId()))
+            unshadeWindow (winId());
+    }
 #endif
-    if (setCurrent) stealFocus();
 
     return tabPage;
 }
@@ -1556,11 +1630,7 @@ void FPwin::updateRecenMenu()
     QList<QAction *> actions = ui->menuOpenRecently->actions();
     int recentSize = recentFiles.count();
     QFontMetrics metrics (ui->menuOpenRecently->font());
-#if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
     int w = 150 * metrics.horizontalAdvance (' ');
-#else
-    int w = 150 * metrics.width (' ');
-#endif
     for (int i = 0; i < recentNumber; ++i)
     {
         if (i < recentSize)
@@ -1674,11 +1744,8 @@ void FPwin::executeProcess()
     QList<QDialog*> dialogs = findChildren<QDialog*>();
     for (int i = 0; i < dialogs.count(); ++i)
     {
-        if (dialogs.at (i)->objectName() != "processDialog"
-            && dialogs.at (i)->objectName() != "sessionDialog")
-        {
+        if (dialogs.at (i)->isModal())
             return; // shortcut may work when there's a modal dialog
-        }
     }
     closeWarningBar();
 
@@ -1690,7 +1757,8 @@ void FPwin::executeProcess()
         if (tabPage->findChild<QProcess *>(QString(), Qt::FindDirectChildrenOnly))
         {
             showWarningBar ("<center><b><big>" + tr ("Another process is running in this tab!") + "</big></b></center>"
-                            + "<center>" + tr ("Only one process is allowed per tab.") + "</center>");
+                            + "<center>" + tr ("Only one process is allowed per tab.") + "</center>",
+                            15);
             return;
         }
 
@@ -1708,11 +1776,11 @@ void FPwin::executeProcess()
         QString command = config.getExecuteCommand();
 #if (QT_VERSION >= QT_VERSION_CHECK(5,15,0))
         /* Qt 5.15 has made things more complex and, at the same time, better:
-           on the one hand, we should see if there is a command argument ; on the
+           on the one hand, we should see if there is a command argument; on the
            other hand, we don't need to worry about spaces and quotes in file names. */
         if (!command.isEmpty())
         {
-            QStringList commandParts = command.split (QRegularExpression ("\\s+"), Qt::SkipEmptyParts);
+            QStringList commandParts = QProcess::splitCommand (command);
             if (!commandParts.isEmpty())
             {
                 command = commandParts.takeAt (0); // there may be arguments
@@ -1786,12 +1854,12 @@ void FPwin::displayMessage (bool error)
             QTextCursor cur = tEdit->textCursor();
             cur.movePosition (QTextCursor::End);
             tEdit->setTextCursor (cur);
+            stealFocus (msgDlg);
         }
     }
     else
     {
         msgDlg = new QDialog (qobject_cast<QWidget*>(process->parent()));
-        msgDlg->setObjectName ("processDialog");
         msgDlg->setWindowTitle (tr ("Script Output"));
         msgDlg->setSizeGripEnabled (true);
         QGridLayout *grid = new QGridLayout;
@@ -1835,37 +1903,48 @@ void FPwin::displayError()
 /*************************/
 // This closes either the current page or the right-clicked side-pane item but
 // never the right-clicked tab because the tab context menu has no closing item.
-void FPwin::closeTab()
+void FPwin::closePage()
 {
     if (!isReady()) return;
 
     pauseAutoSaving (true);
 
     QListWidgetItem *curItem = nullptr;
-    int index = -1;
+    int tabIndex = -1;
+    int index = -1; // tab index or side-pane row
     if (sidePane_ && rightClicked_ >= 0) // close the right-clicked item
     {
-        index = ui->tabWidget->indexOf (sideItems_.value (sidePane_->listWidget()->item (rightClicked_)));
-        if (index != ui->tabWidget->currentIndex())
+        index = rightClicked_;
+        tabIndex = ui->tabWidget->indexOf (sideItems_.value (sidePane_->listWidget()->item (rightClicked_)));
+        if (tabIndex != ui->tabWidget->currentIndex())
             curItem = sidePane_->listWidget()->currentItem();
     }
     else // close the current page
     {
-        index = ui->tabWidget->currentIndex();
-        if (index == -1)  // not needed
+        tabIndex = ui->tabWidget->currentIndex();
+        if (tabIndex == -1)  // not needed
         {
             pauseAutoSaving (false);
             return;
         }
+        index = tabIndex; // may need to be converted to the side-pane row
+        if (sidePane_ && !sideItems_.isEmpty())
+        {
+            if (TabPage *tabPage = qobject_cast<TabPage *>(ui->tabWidget->widget (tabIndex)))
+            {
+                if (QListWidgetItem *wi = sideItems_.key (tabPage))
+                    index = sidePane_->listWidget()->row (wi);
+            }
+        }
     }
 
-    if (savePrompt (index, false) != SAVED)
+    if (savePrompt (tabIndex, false, index - 1, index + 1, false, curItem) != SAVED)
     {
         pauseAutoSaving (false);
         return;
     }
 
-    deleteTabPage (index);
+    deleteTabPage (tabIndex);
     int count = ui->tabWidget->count();
     if (count == 0)
     {
@@ -1888,21 +1967,36 @@ void FPwin::closeTab()
     pauseAutoSaving (false);
 }
 /*************************/
-void FPwin::closeTabAtIndex (int index)
+void FPwin::closeTabAtIndex (int tabIndex)
 {
     pauseAutoSaving (true);
 
     TabPage *curPage = nullptr;
-    if (index != ui->tabWidget->currentIndex())
-        curPage = qobject_cast<TabPage*>(ui->tabWidget->currentWidget());
-    if (savePrompt (index, false) != SAVED)
+    QListWidgetItem *curItem = nullptr;
+    if (tabIndex != ui->tabWidget->currentIndex())
+    {
+        if (sidePane_)
+            curItem = sidePane_->listWidget()->currentItem();
+        else
+            curPage = qobject_cast<TabPage*>(ui->tabWidget->currentWidget());
+    }
+    int index = tabIndex; // may need to be converted to the side-pane row
+    if (sidePane_ && !sideItems_.isEmpty())
+    {
+        if (TabPage *tabPage = qobject_cast<TabPage *>(ui->tabWidget->widget (tabIndex)))
+        {
+            if (QListWidgetItem *wi = sideItems_.key (tabPage))
+                index = sidePane_->listWidget()->row (wi);
+        }
+    }
+    if (savePrompt (tabIndex, false, index - 1, index + 1, false, curItem, curPage) != SAVED)
     {
         pauseAutoSaving (false);
         return;
     }
     closeWarningBar();
 
-    deleteTabPage (index);
+    deleteTabPage (tabIndex);
     int count = ui->tabWidget->count();
     if (count == 0)
     {
@@ -1915,8 +2009,11 @@ void FPwin::closeTabAtIndex (int index)
         if (count == 1)
             updateGUIForSingleTab (true);
 
-        if (curPage) // restore the current page
+        /* restore the current page/item */
+        if (curPage)
             ui->tabWidget->setCurrentWidget (curPage);
+        else if (curItem)
+            sidePane_->listWidget()->setCurrentItem (curItem);
 
         if (TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget()))
             tabPage->textEdit()->setFocus();
@@ -2000,8 +2097,11 @@ void FPwin::asterisk (bool modified)
     }
     shownName.replace ("\n", " ");
 
-    if (sidePane_)
-        sidePane_->listWidget()->currentItem()->setText (modified ? shownName + "*" : shownName);
+    if (sidePane_ && !sideItems_.isEmpty())
+    {
+        if (QListWidgetItem *wi = sideItems_.key (tabPage))
+            wi->setText (modified ? shownName + "*" : shownName);
+    }
 
     if (modified)
         shownName.prepend ("*");
@@ -2079,6 +2179,7 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
             closeWarningBar();
             emit finishedLoading();
             QTimer::singleShot (0, this, [this]() {unbusy();});
+            stealFocus();
         }
         return;
     }
@@ -2088,7 +2189,7 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
 
     /* only for the side-pane mode */
     static bool scrollToFirstItem (false);
-    static TabPage *firstPage = nullptr;
+    static QListWidgetItem *firstItem = nullptr;
 
     TextEdit *textEdit;
     TabPage *tabPage = nullptr;
@@ -2114,13 +2215,6 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
     {
         if (sidePane_ && !reload && !enforceEncod) // an unused empty tab
             scrollToFirstItem = true;
-        /*if (isMinimized())
-            setWindowState (windowState() & (~Qt::WindowMinimized | Qt::WindowActive));*/
-#ifdef HAS_X11
-        if (static_cast<FPsingleton*>(qApp)->isX11() && isWindowShaded (winId()))
-            unshadeWindow (winId());
-#endif
-        stealFocus();
     }
     textEdit->setSaveCursor (restoreCursor == 1);
 
@@ -2135,14 +2229,6 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
     }
 
     QFileInfo fInfo (fileName);
-
-    if (scrollToFirstItem
-        && (!firstPage
-            || firstPage->textEdit()->getFileName().section ('/', -1).
-               compare (fInfo.fileName(), Qt::CaseInsensitive) > 0))
-    {
-        firstPage = tabPage;
-    }
 
     /* this workaround, for the RTL bug in QPlainTextEdit, isn't needed
        because a better workaround is included in textedit.cpp */
@@ -2189,7 +2275,7 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
     if (reload)
     {
         QTextCursor cur = textEdit->textCursor();
-        cur.movePosition (QTextCursor::End, QTextCursor::MoveAnchor);
+        cur.movePosition (QTextCursor::End);
         int curPos = cur.position();
         if (anchor <= curPos && pos <= curPos)
         {
@@ -2207,7 +2293,7 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
             if (cursorPos.contains (fileName))
             {
                 QTextCursor cur = textEdit->textCursor();
-                cur.movePosition (QTextCursor::End, QTextCursor::MoveAnchor);
+                cur.movePosition (QTextCursor::End);
                 int pos = qMin (qMax (cursorPos.value (fileName, 0).toInt(), 0), cur.position());
                 cur.setPosition (pos);
                 QTimer::singleShot (0, textEdit, [textEdit, cur]() {
@@ -2275,17 +2361,23 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
     if (!tip.endsWith ("/")) tip += "/";
     QFontMetrics metrics (QToolTip::font());
     QString elidedTip = "<p style='white-space:pre'>"
-#if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
                         + metrics.elidedText (tip, Qt::ElideMiddle, 200 * metrics.horizontalAdvance (' '))
-#else
-                        + metrics.elidedText (tip, Qt::ElideMiddle, 200 * metrics.width (' '))
-#endif
                         + "</p>";
     ui->tabWidget->setTabToolTip (ui->tabWidget->indexOf (tabPage), elidedTip);
     if (!sideItems_.isEmpty())
     {
         if (QListWidgetItem *wi = sideItems_.key (tabPage))
+        {
             wi->setToolTip (elidedTip);
+            if (scrollToFirstItem
+                && (!firstItem
+                    /* consult the natural sorting of ListWidgetItem */
+                    || *(static_cast<ListWidgetItem*>(wi))
+                       < *(static_cast<ListWidgetItem*>(firstItem))))
+            {
+                firstItem = wi;
+            }
+        }
     }
 
     if (uneditable || alreadyOpen (tabPage))
@@ -2318,7 +2410,10 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
             if (!uneditable)
                 ui->actionEdit->setVisible (true);
             else
+            {
                 ui->actionSaveAs->setDisabled (true);
+                ui->actionSaveCodec->setDisabled (true);
+            }
             ui->actionCut->setDisabled (true);
             ui->actionPaste->setDisabled (true);
             ui->actionSoftTab->setDisabled (true);
@@ -2385,20 +2480,18 @@ void FPwin::addText (const QString& text, const QString& fileName, const QString
             });
         }
         /* select the first item (sidePane_ exists) */
-        else if (firstPage && !sideItems_.isEmpty())
-        {
-            if (QListWidgetItem *wi = sideItems_.key (firstPage))
-                sidePane_->listWidget()->setCurrentItem (wi);
-        }
+        else if (firstItem)
+            sidePane_->listWidget()->setCurrentItem (firstItem);
         /* reset the static variables */
         scrollToFirstItem = false;
-        firstPage = nullptr;
+        firstItem = nullptr;
 
         closeWarningBar (true); // here the closing animation won't be interrupted
         emit finishedLoading();
         /* remove the busy cursor only after all events are processed
            (e.g., highlighting the syntax of a huge text may take a while) */
         QTimer::singleShot (0, this, [this]() {unbusy();});
+        stealFocus();
     }
 }
 /*************************/
@@ -2421,7 +2514,8 @@ void FPwin::onOpeninNonTextFiles()
     disconnect (this, &FPwin::finishedLoading, this, &FPwin::onOpeninNonTextFiles);
     QTimer::singleShot (0, this, [=]() {
         showWarningBar ("<center><b><big>" + tr ("Non-text file(s) not opened!") + "</big></b></center>\n"
-                        + "<center>" + tr ("See Preferences → Files → Do not permit opening of non-text files") + "</center>");
+                        + "<center>" + tr ("See Preferences → Files → Do not permit opening of non-text files") + "</center>",
+                        20);
     });
 }
 /*************************/
@@ -2459,56 +2553,65 @@ void FPwin::onOpeningNonexistent()
     });
 }
 /*************************/
-void FPwin::showWarningBar (const QString& message, bool startupBar)
+void FPwin::showWarningBar (const QString& message, int timeout, bool startupBar)
 {
     return;
     
-    /* don't show the warning bar when there's a modal dialog */
-    QList<QDialog*> dialogs = findChildren<QDialog*>();
-    for (int i = 0; i < dialogs.count(); ++i)
+    /* don't show this warning bar if the window is locked at this moment */
+    if (locked_) return;
+    if (timeout > 0)
     {
-        if (dialogs.at (i)->objectName() != "processDialog"
-            && dialogs.at (i)->objectName() != "sessionDialog")
+        /* don't show the temporary warning bar when there's a modal dialog */
+        QList<QDialog*> dialogs = findChildren<QDialog*>();
+        for (int i = 0; i < dialogs.count(); ++i)
         {
-            return;
+            if (dialogs.at (i)->isModal())
+                return;
         }
     }
+
+    TabPage *tabPage = qobject_cast<TabPage*>(ui->tabWidget->currentWidget());
+
     /* don't close and show the same warning bar */
     if (WarningBar *prevBar = ui->tabWidget->findChild<WarningBar *>())
     {
         if (!prevBar->isClosing() && prevBar->getMessage() == message)
+        {
+            prevBar->setTimeout (timeout);
+            if (tabPage && timeout > 0)
+            { // close the bar when the text is scrolled
+                disconnect (tabPage->textEdit(), &QPlainTextEdit::updateRequest, prevBar, &WarningBar::closeBarOnScrolling);
+                connect (tabPage->textEdit(), &QPlainTextEdit::updateRequest, prevBar, &WarningBar::closeBarOnScrolling);
+            }
             return;
+        }
     }
 
     int vOffset = 0;
-    TabPage *tabPage = qobject_cast<TabPage*>(ui->tabWidget->currentWidget());
     if (tabPage)
         vOffset = tabPage->height() - tabPage->textEdit()->height();
-    WarningBar *bar = new WarningBar (message, vOffset, ui->tabWidget);
+    WarningBar *bar = new WarningBar (message, vOffset, timeout, ui->tabWidget);
     if (startupBar)
         bar->setObjectName ("startupBar");
     /* close the bar when the text is scrolled */
-    if (tabPage)
-    {
-        connect (tabPage->textEdit(), &QPlainTextEdit::updateRequest, bar, [=](const QRect&, int dy) {
-            if (dy != 0)
-                closeWarningBar();
-        });
-    }
+    if (tabPage && timeout > 0)
+        connect (tabPage->textEdit(), &QPlainTextEdit::updateRequest, bar, &WarningBar::closeBarOnScrolling);
 }
 /*************************/
 void FPwin::showCrashWarning()
 {
     QTimer::singleShot (0, this, [=]() {
         showWarningBar ("<center><b><big>" + tr ("A previous crash detected!") + "</big></b></center>"
-                        + "<center>" + tr ("Preferably, close all FeatherPad windows and start again!") + "</center>", true);
+                        + "<center>" + tr ("Preferably, close all FeatherPad windows and start again!") + "</center>",
+                        10, true);
     });
 }
 /*************************/
 void FPwin::showRootWarning()
 {
     QTimer::singleShot (0, this, [=]() {
-        showWarningBar ("<center><b><big>" + tr ("Root Instance") + "</big></b></center>", true);
+        showWarningBar ("<center><b><big>" + tr ("Root Instance") + "</big></b></center>",
+                        10, true);
     });
 }
 /*************************/
@@ -2661,7 +2764,8 @@ void FPwin::enforceEncoding (QAction*)
     {
         if (savePrompt (index, false) != SAVED)
         { // back to the previous encoding
-            encodingToCheck (textEdit->getEncoding());
+            if (!locked_)
+                encodingToCheck (textEdit->getEncoding());
             return;
         }
         /* if the file is removed, close its tab to open a new one */
@@ -2726,15 +2830,25 @@ static inline int trailingSpaces (const QString &str)
     return i;
 }
 /*************************/
-// This is for both "Save" and "Save As"
-bool FPwin::saveFile (bool keepSyntax)
+// This is for both "Save" and "Save As".
+// See savePrompt() for the meanings of "first" and its following variables.
+bool FPwin::saveFile (bool keepSyntax,
+                      int first, int last, bool closingWindow,
+                      QListWidgetItem *curItem, TabPage *curPage)
 {
-    if (!isReady()) return false;
+    if (!isReady())
+    {
+        closePreviousPages_ = false;
+        return false;
+    }
 
     int index = ui->tabWidget->currentIndex();
     TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index));
-    if (tabPage == nullptr) return false;
-
+    if (tabPage == nullptr)
+    {
+        closePreviousPages_ = false;
+        return false;
+    }
     TextEdit *textEdit = tabPage->textEdit();
     QString fname = textEdit->getFileName();
     QString filter = tr ("All Files (*)");
@@ -2786,7 +2900,11 @@ bool FPwin::saveFile (bool keepSyntax)
             && QObject::sender() != ui->actionSaveAs
             && QObject::sender() != ui->actionSaveCodec)
         {
-            if (hasAnotherDialog()) return false;
+            if (hasAnotherDialog())
+            {
+                closePreviousPages_ = false;
+                return false;
+            }
             updateShortcuts (true);
             FileDialog dialog (this, config.getNativeDialog());
             dialog.setAcceptMode (QFileDialog::AcceptSave);
@@ -2804,12 +2922,14 @@ bool FPwin::saveFile (bool keepSyntax)
                 if (fname.isEmpty() || QFileInfo (fname).isDir())
                 {
                     updateShortcuts (false);
+                    closePreviousPages_ = false;
                     return false;
                 }
             }
             else
             {
                 updateShortcuts (false);
+                closePreviousPages_ = false;
                 return false;
             }
             updateShortcuts (false);
@@ -2818,7 +2938,11 @@ bool FPwin::saveFile (bool keepSyntax)
 
     if (QObject::sender() == ui->actionSaveAs)
     {
-        if (hasAnotherDialog()) return false;
+        if (hasAnotherDialog())
+        {
+            closePreviousPages_ = false;
+            return false;
+        }
         updateShortcuts (true);
         FileDialog dialog (this, config.getNativeDialog());
         dialog.setAcceptMode (QFileDialog::AcceptSave);
@@ -2836,19 +2960,25 @@ bool FPwin::saveFile (bool keepSyntax)
             if (fname.isEmpty() || QFileInfo (fname).isDir())
             {
                 updateShortcuts (false);
+                closePreviousPages_ = false;
                 return false;
             }
         }
         else
         {
             updateShortcuts (false);
+            closePreviousPages_ = false;
             return false;
         }
         updateShortcuts (false);
     }
     else if (QObject::sender() == ui->actionSaveCodec)
     {
-        if (hasAnotherDialog()) return false;
+        if (hasAnotherDialog())
+        {
+            closePreviousPages_ = false;
+            return false;
+        }
         updateShortcuts (true);
         FileDialog dialog (this, config.getNativeDialog());
         dialog.setAcceptMode (QFileDialog::AcceptSave);
@@ -2866,12 +2996,14 @@ bool FPwin::saveFile (bool keepSyntax)
             if (fname.isEmpty() || QFileInfo (fname).isDir())
             {
                 updateShortcuts (false);
+                closePreviousPages_ = false;
                 return false;
             }
         }
         else
         {
             updateShortcuts (false);
+            closePreviousPages_ = false;
             return false;
         }
         updateShortcuts (false);
@@ -2915,11 +3047,16 @@ bool FPwin::saveFile (bool keepSyntax)
     /* now, try to write */
     QTextDocumentWriter writer (fname, "plaintext");
     bool success = false;
+    bool MSWinLineEnd = false;
     if (QObject::sender() == ui->actionSaveCodec)
     {
         QString encoding  = checkToEncoding();
 
-        if (hasAnotherDialog()) return false;
+        if (hasAnotherDialog())
+        {
+            closePreviousPages_ = false;
+            return false;
+        }
         updateShortcuts (true);
         MessageBox msgBox (this);
         msgBox.setIcon (QMessageBox::Question);
@@ -2931,6 +3068,7 @@ bool FPwin::saveFile (bool keepSyntax)
         msgBox.changeButtonText (QMessageBox::Cancel, tr ("Cancel"));
         msgBox.setText ("<center>" + tr ("Do you want to use <b>MS Windows</b> end-of-lines?") + "</center>");
         msgBox.setInformativeText ("<center>" + tr ("This may be good for readability under MS Windows.") + "</center>");
+        msgBox.setDefaultButton (QMessageBox::No);
         msgBox.setWindowModality (Qt::WindowModal);
         QString contents;
         size_t ln;
@@ -2939,6 +3077,7 @@ bool FPwin::saveFile (bool keepSyntax)
         const char *txt;
         switch (msgBox.exec()) {
         case QMessageBox::Yes:
+            MSWinLineEnd = true;
             contents = textEdit->document()->toPlainText();
             contents.replace ("\n", "\r\n");
             ln = static_cast<size_t>(contents.length()); // for fwrite();
@@ -2974,10 +3113,13 @@ bool FPwin::saveFile (bool keepSyntax)
             break;
         default:
             updateShortcuts (false);
+            closePreviousPages_ = false;
             return false;
         }
         updateShortcuts (false);
     }
+    else
+        encodingToCheck ("UTF-8"); // UTF-8 is the default encoding with saving
     if (!success)
         success = writer.write (textEdit->document());
 
@@ -2995,11 +3137,7 @@ bool FPwin::saveFile (bool keepSyntax)
         if (!tip.endsWith ("/")) tip += "/";
         QFontMetrics metrics (QToolTip::font());
         QString elidedTip = "<p style='white-space:pre'>"
-#if (QT_VERSION >= QT_VERSION_CHECK(5,11,0))
                             + metrics.elidedText (tip, Qt::ElideMiddle, 200 * metrics.horizontalAdvance (' '))
-#else
-                            + metrics.elidedText (tip, Qt::ElideMiddle, 200 * metrics.width (' '))
-#endif
                             + "</p>";
         ui->tabWidget->setTabToolTip (index, elidedTip);
         if (!sideItems_.isEmpty())
@@ -3009,81 +3147,359 @@ bool FPwin::saveFile (bool keepSyntax)
         }
         lastFile_ = fname;
         config.addRecentFile (lastFile_);
-        if (!keepSyntax)
-        { // uninstall and reinstall the syntax highlgihter if the programming language is changed
-            QString prevLan = textEdit->getProg();
-            setProgLang (textEdit);
-            if (prevLan != textEdit->getProg())
-            {
-                if (config.getShowLangSelector() && config.getSyntaxByDefault())
-                {
-                    if (textEdit->getLang() == textEdit->getProg())
-                        textEdit->setLang (QString()); // not enforced because it's the real syntax
-                    updateLangBtn (textEdit);
-                }
 
-                if (ui->statusBar->isVisible()
-                    && textEdit->getWordNumber() != -1)
-                { // we want to change the statusbar text below
-                    disconnect (textEdit->document(), &QTextDocument::contentsChange, this, &FPwin::updateWordInfo);
-                }
-
-                if (textEdit->getLang().isEmpty())
-                { // restart the syntax highlighting only when the language isn't forced
-                    syntaxHighlighting (textEdit, false);
-                    if (ui->actionSyntax->isChecked())
-                        syntaxHighlighting (textEdit);
-                }
-
-                if (ui->statusBar->isVisible())
-                { // correct the statusbar text just by replacing the old syntax info
-                    QLabel *statusLabel = ui->statusBar->findChild<QLabel *>("statusLabel");
-                    QString str = statusLabel->text();
-                    QString syntaxStr = tr ("Syntax");
-                    int i = str.indexOf (syntaxStr);
-                    if (i == -1) // there was no real language before saving (prevLan was "url")
-                    {
-                        QString lineStr = tr ("Lines");
-                        int j = str.indexOf (lineStr);
-                        syntaxStr = tr ("Syntax") + QString (": %1").arg (textEdit->getProg());
-                        str.insert (j, syntaxStr);
-                    }
-                    else
-                    {
-                        if (textEdit->getProg() == "url") // there's no real language after saving
-                        {
-                            syntaxStr = tr ("Syntax");
-                            QString lineStr = tr ("Lines");
-                            int j = str.indexOf (syntaxStr);
-                            int k = str.indexOf (lineStr);
-                            str.remove (j, k - j);
-                        }
-                        else // the language is changed by saving
-                        {
-                            QString lineStr = tr ("Lines");
-                            int j = str.indexOf (lineStr);
-                            int offset = syntaxStr.count() + 2; // size of ": "
-                            str.replace (i + offset, j - i - offset, textEdit->getProg());
-                        }
-                    }
-                    statusLabel->setText (str);
-                    if (textEdit->getWordNumber() != -1)
-                        connect (textEdit->document(), &QTextDocument::contentsChange, this, &FPwin::updateWordInfo);
-                }
-            }
+        /* if this isn't about deleting after saving, correct the
+           encoding (set it to UTF-8) if needed, as in enforceEncoding() */
+        if ((index <= first || (index >= last && last >= 0))
+            && textEdit->getEncoding() != checkToEncoding())
+        {
+            loadText (fname, true, true,
+                      0, 0,
+                      textEdit->isUneditable(), false);
         }
+        else if (!keepSyntax)
+            reloadSyntaxHighlighter (textEdit);
     }
     else
     {
-        QString str = writer.device()->errorString();
-        showWarningBar ("<center><b><big>" + tr ("Cannot be saved!") + "</big></b></center>\n"
-                        + "<center>" + QString ("<center>%1.</center>").arg (str) + "</center>");
+        /* when every attempt at saving fails, try to save as root */
+        if (QFile::exists (fname))
+        {
+            if (!QFileInfo (fname).permission (QFile::WriteUser))
+            {
+                saveAsRoot (fname, tabPage, first, last, closingWindow, curItem, curPage, MSWinLineEnd);
+                return false; // the probable saving will be done with a dealy
+            }
+        }
+        /* check the containing folder (which is guaranteed to exist) */
+        else if (!QFileInfo (fname.section ("/", 0, -2)).permission (QFile::WriteUser))
+        {
+            saveAsRoot (fname, tabPage, first, last, closingWindow, curItem, curPage, MSWinLineEnd);
+            return false;
+        }
+
+        closePreviousPages_ = false;
+        /* NOTE: Is it possible to reach this?
+                 It was needed before saveAsRoot() was added. */
+        QString error = writer.device()->errorString();
+        QTimer::singleShot (0, this, [this, error]() {
+            showWarningBar ("<center><b><big>" + tr ("Cannot be saved!") + "</big></b></center>\n"
+                            + "<center><i>" + error + "</i></center>",
+                            15);
+        });
     }
 
     if (success && textEdit->isReadOnly() && !alreadyOpen (tabPage))
          QTimer::singleShot (0, this, &FPwin::makeEditable);
 
     return success;
+}
+/*************************/
+// Here, "first" and "last" are as in closePages(). "curItem"/"curPage" is the
+// item/tab that should be made current in side-pane/tab-bar again, after saving
+// and closing. "MSWinLineEnd" shows whether MS Windows end-of-lines are used.
+void FPwin::saveAsRoot (const QString& fileName, TabPage *tabPage,
+                        int first, int last, bool closingWindow,
+                        QListWidgetItem *curItem, TabPage *curPage,
+                        bool MSWinLineEnd)
+{
+    QString temp = QStandardPaths::writableLocation (QStandardPaths::TempLocation);
+    if (temp.isEmpty()) return; // impossible
+    const QString curTime = QDateTime::currentDateTime().toString ("yyyyMMddhhmmsszzz");
+    QString fname = temp + "/" + "featherpad-" + curTime;
+    TextEdit *textEdit = tabPage->textEdit();
+    QTextDocumentWriter writer (fname, "plaintext");
+    bool success = false;
+    if (QObject::sender() == ui->actionSaveCodec)
+    {
+        QString encoding  = checkToEncoding();
+        if (MSWinLineEnd)
+        {
+            QString contents =textEdit->document()->toPlainText();
+            contents.replace ("\n", "\r\n");
+            size_t ln = static_cast<size_t>(contents.length());
+            QTextCodec *codec = QTextCodec::codecForName (encoding.toUtf8());
+            QByteArray encodedString = codec->fromUnicode (contents);
+            const char *txt = encodedString.constData();
+            if (encoding != "UTF-16")
+            {
+                std::ofstream file;
+                file.open (fname.toUtf8().constData());
+                if (file.is_open())
+                {
+                    file << txt;
+                    file.close();
+                    success = true;
+                }
+            }
+            else
+            {
+                FILE * file;
+                file = fopen (fname.toUtf8().constData(), "wb");
+                if (file != nullptr)
+                {
+                    fwrite (txt , 2 , ln + 1 , file);
+                    fclose (file);
+                    success = true;
+                }
+            }
+        }
+        else
+            writer.setCodec (QTextCodec::codecForName (encoding.toUtf8()));
+    }
+    else
+        encodingToCheck ("UTF-8");
+    if (!success)
+        success = writer.write (textEdit->document());
+
+    if (success)
+    { // use "pkexec" to copy the temporary file to the target file
+        showWarningBar ("<center><b><big>" + tr ("Saving as root.") + "</big></b></center>\n"
+                        + "<center><i>" + tr ("Waiting for authentication...") + "</i></center>",
+                        0);
+        lockWindow (tabPage, true); // wait until the following process is finished
+        QProcess *fileProcess = new QProcess (this);
+        connect (fileProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), textEdit,
+                 [=](int exitCode, QProcess::ExitStatus exitStatus) {
+            lockWindow (tabPage, false);
+            QFile::remove (fname);
+            if (exitStatus != QProcess::NormalExit || exitCode != 0)
+            {
+                lastWinFilesCur_.clear(); // wasn't cleared at closeEvent()
+                closePreviousPages_ = false;
+                fileProcess->setReadChannel (QProcess::StandardError);
+                QString error = fileProcess->readAllStandardError();
+                showWarningBar ("<center><b><big>" + tr ("Cannot be saved!") + "</big></b></center>\n"
+                                + "<center><i>" + error + "</i></center>",
+                                15);
+            }
+            else
+            {
+                closeWarningBar();
+                QFileInfo fInfo (fileName);
+                int tabIndex = ui->tabWidget->currentIndex();
+                /* because the closing range isn't necessarily about tab indexes,
+                   "index" will be set again below if the side pane is visible */
+                int index = tabIndex;
+
+                textEdit->document()->setModified (false);
+                textEdit->setFileName (fileName);
+                textEdit->setSize (fInfo.size());
+                textEdit->setLastModified (fInfo.lastModified());
+                ui->actionReload->setDisabled (false);
+                setTitle (fileName);
+                QString tip (fInfo.absolutePath());
+                if (!tip.endsWith ("/")) tip += "/";
+                QFontMetrics metrics (QToolTip::font());
+                QString elidedTip = "<p style='white-space:pre'>"
+                                    + metrics.elidedText (tip, Qt::ElideMiddle, 200 * metrics.horizontalAdvance (' '))
+                                    + "</p>";
+                ui->tabWidget->setTabToolTip (tabIndex, elidedTip);
+                if (sidePane_ && !sideItems_.isEmpty())
+                {
+                    if (QListWidgetItem *wi = sideItems_.key (tabPage))
+                    {
+                        wi->setToolTip (elidedTip);
+                        index = sidePane_->listWidget()->row (wi);
+                    }
+                    else index = -1; // never happens
+                }
+                lastFile_ = fileName;
+                Config& config = static_cast<FPsingleton*>(qApp)->getConfig();
+                config.addRecentFile (lastFile_);
+
+                if (index > first && (index < last || last < 0))
+                {
+                    /* close this tab, as in closeTabAtIndex() */
+                    deleteTabPage (tabIndex,
+                                   closingWindow && (lastWinFilesCur_.size() >= MAX_LAST_WIN_FILES ? false : true),
+                                   !closingWindow);
+                    int count = ui->tabWidget->count();
+                    if (count == 0)
+                    {
+                        ui->actionReload->setDisabled (true);
+                        ui->actionSave->setDisabled (true);
+                        enableWidgets (false);
+                    }
+                    else
+                    {
+                        if (count == 1)
+                            updateGUIForSingleTab (true);
+
+                        /* restore the current page/item */
+                        if (curItem && sidePane_)
+                            sidePane_->listWidget()->setCurrentItem (curItem);
+                        else if (curPage && !sidePane_)
+                            ui->tabWidget->setCurrentWidget (curPage);
+
+                        if (TabPage *curTabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget()))
+                            curTabPage->textEdit()->setFocus();
+                    }
+                    if (closingWindow) close();
+                    else
+                    {
+                        if (closePreviousPages_ && last < 0 && index == first + 1)
+                        { // continue closing previous pages
+                            closePreviousPages_ = false;
+                            closePages (-1, first);
+                        }
+                        else
+                            closePages (first, last - 1);
+                    }
+                }
+                else if (textEdit->getEncoding() != checkToEncoding())
+                { // correct the encoding
+                    lastWinFilesCur_.clear(); // just a precaution
+                    closePreviousPages_ = false;
+                    loadText (fileName, true, true,
+                              0, 0,
+                              textEdit->isUneditable(), false);
+                }
+                else
+                {
+                    /* the tab is neither closed not reloaded;
+                       update its highlighting if needed */
+                    lastWinFilesCur_.clear();
+                    closePreviousPages_ = false;
+                    reloadSyntaxHighlighter (textEdit);
+                }
+            }
+            fileProcess->deleteLater();
+        });
+
+        fileProcess->start ("pkexec", QStringList() << "--disable-internal-agent" << "cp" << fname << fileName);
+        if (!fileProcess->waitForStarted())
+        {
+            lockWindow (tabPage, false);
+            QFile::remove (fname);
+            lastWinFilesCur_.clear();
+            closePreviousPages_ = false;
+            showWarningBar ("<center><b><big>" + tr ("Cannot be saved!") + "</big></b></center>\n"
+                            + "<center><i>" + tr ("\"pkexec\" is not found. Please install Polkit!") + "</i></center>",
+                            15);
+            fileProcess->deleteLater();
+            return;
+        }
+    }
+    else
+    {
+        lastWinFilesCur_.clear();
+        closePreviousPages_ = false;
+        QString error = writer.device()->errorString();
+        showWarningBar ("<center><b><big>" + tr ("Cannot be saved!") + "</big></b></center>\n"
+                        + "<center>" + error + "</center>",
+                        15);
+    }
+
+    if (success && textEdit->isReadOnly() && !alreadyOpen (tabPage))
+         QTimer::singleShot (0, this, &FPwin::makeEditable);
+}
+/*************************/
+void FPwin::reloadSyntaxHighlighter (TextEdit *textEdit)
+{ // uninstall and reinstall the syntax highlgihter if the programming language is changed
+    QString prevLan = textEdit->getProg();
+    setProgLang (textEdit);
+    if (prevLan == textEdit->getProg())
+        return;
+
+    Config config = static_cast<FPsingleton*>(qApp)->getConfig();
+    if (config.getShowLangSelector() && config.getSyntaxByDefault())
+    {
+        if (textEdit->getLang() == textEdit->getProg())
+            textEdit->setLang (QString()); // not enforced because it's the real syntax
+        updateLangBtn (textEdit);
+    }
+
+    if (ui->statusBar->isVisible()
+        && textEdit->getWordNumber() != -1)
+    { // we want to change the statusbar text below
+        disconnect (textEdit->document(), &QTextDocument::contentsChange, this, &FPwin::updateWordInfo);
+    }
+
+    if (textEdit->getLang().isEmpty())
+    { // restart the syntax highlighting only when the language isn't forced
+        syntaxHighlighting (textEdit, false);
+        if (ui->actionSyntax->isChecked())
+            syntaxHighlighting (textEdit);
+    }
+
+    if (ui->statusBar->isVisible())
+    { // correct the statusbar text just by replacing the old syntax info
+        QLabel *statusLabel = ui->statusBar->findChild<QLabel *>("statusLabel");
+        QString str = statusLabel->text();
+        QString syntaxStr = tr ("Syntax");
+        int i = str.indexOf (syntaxStr);
+        if (i == -1) // there was no real language before saving (prevLan was "url")
+        {
+            QString lineStr = "&nbsp;&nbsp;&nbsp;<b>" + tr ("Lines");
+            int j = str.indexOf (lineStr);
+            syntaxStr = "&nbsp;&nbsp;&nbsp;<b>" + tr ("Syntax") + QString (":</b> <i>%1</i>")
+                                                                  .arg (textEdit->getProg());
+            str.insert (j, syntaxStr);
+        }
+        else
+        {
+            if (textEdit->getProg() == "url") // there's no real language after saving
+            {
+                syntaxStr = "&nbsp;&nbsp;&nbsp;<b>" + tr ("Syntax");
+                QString lineStr = "&nbsp;&nbsp;&nbsp;<b>" + tr ("Lines");
+                int j = str.indexOf (syntaxStr);
+                int k = str.indexOf (lineStr);
+                str.remove (j, k - j);
+            }
+            else // the language is changed by saving
+            {
+                QString lineStr = "</i>&nbsp;&nbsp;&nbsp;<b>" + tr ("Lines");
+                int j = str.indexOf (lineStr);
+                int offset = syntaxStr.count() + 9; // size of ":</b> <i>"
+                str.replace (i + offset, j - i - offset, textEdit->getProg());
+            }
+        }
+        statusLabel->setText (str);
+        if (textEdit->getWordNumber() != -1)
+            connect (textEdit->document(), &QTextDocument::contentsChange, this, &FPwin::updateWordInfo);
+    }
+}
+/*************************/
+void FPwin::lockWindow (TabPage *tabPage, bool lock)
+{
+    locked_ = lock;
+    if (lock)
+    {
+        pauseAutoSaving (true);
+        /* close Session Manager */
+        QList<QDialog*> dialogs = findChildren<QDialog*>();
+        for (int i = 0; i < dialogs.count(); ++i)
+        {
+            if (dialogs.at (i)->objectName() == "sessionDialog")
+            {
+                dialogs.at (i)->close();
+                break;
+            }
+        }
+    }
+    ui->menuBar->setEnabled (!lock);
+    const auto allMenus = ui->menuBar->findChildren<QMenu*>();
+    for (const auto &thisMenu : allMenus)
+    {
+        const auto menuActions = thisMenu->actions();
+        for (const auto &menuAction : menuActions)
+            menuAction->blockSignals (lock);
+    }
+    ui->tabWidget->tabBar()->blockSignals (lock);
+    ui->tabWidget->tabBar()->lockTabs (lock);
+    tabPage->lockPage (lock);
+    ui->dockReplace->setEnabled (!lock);
+    ui->statusBar->setEnabled (!lock);
+    ui->spinBox->setEnabled (!lock);
+    ui->checkBox->setEnabled (!lock);
+    if (sidePane_)
+        sidePane_->lockPane (lock);
+    if (!lock)
+    {
+        tabPage->textEdit()->setFocus();
+        pauseAutoSaving (false);
+    }
 }
 /*************************/
 void FPwin::cutText()
@@ -3309,9 +3725,10 @@ void FPwin::redoing()
         tabPage->textEdit()->redo();
 }
 /*************************/
-void FPwin::changeTab (QListWidgetItem *current, QListWidgetItem* /*previous*/)
+void FPwin::changeTab (QListWidgetItem *current)
 {
     if (!sidePane_ || sideItems_.isEmpty()) return;
+    /* "current" is never null; see the c-tor of ListWidget in "sidepane.cpp" */
     ui->tabWidget->setCurrentWidget (sideItems_.value (current));
 }
 /*************************/
@@ -3362,7 +3779,8 @@ void FPwin::tabSwitch (int index)
             onOpeningNonexistent();
         else if (textEdit->getLastModified() != info.lastModified())
             showWarningBar ("<center><b><big>" + tr ("This file has been modified elsewhere or in another way!") + "</big></b></center>\n"
-                            + "<center>" + tr ("Please be careful about reloading or saving this document!") + "</center>");
+                            + "<center>" + tr ("Please be careful about reloading or saving this document!") + "</center>",
+                            15);
     }
     if (modified)
         shownName.prepend ("*");
@@ -3392,11 +3810,13 @@ void FPwin::tabSwitch (int index)
     {
         ui->actionEdit->setVisible (false);
         ui->actionSaveAs->setEnabled (true);
+        ui->actionSaveCodec->setEnabled (true);
     }
     else
     {
         ui->actionEdit->setVisible (readOnly && !textEdit->isUneditable());
         ui->actionSaveAs->setEnabled (!textEdit->isUneditable());
+        ui->actionSaveCodec->setEnabled (!textEdit->isUneditable());
     }
     ui->actionPaste->setEnabled (!readOnly);
     ui->actionSoftTab->setEnabled (!readOnly);
@@ -3551,7 +3971,8 @@ bool FPwin::event (QEvent *event)
                 }
                 else if (textEdit->getLastModified() != QFileInfo (fname).lastModified())
                     showWarningBar ("<center><b><big>" + tr ("This file has been modified elsewhere or in another way!") + "</big></b></center>\n"
-                                    + "<center>" + tr ("Please be careful about reloading or saving this document!") + "</center>");
+                                    + "<center>" + tr ("Please be careful about reloading or saving this document!") + "</center>",
+                                    15);
             }
         }
     }
@@ -4018,13 +4439,15 @@ void FPwin::updateWordInfo (int /*position*/, int charsRemoved, int charsAdded)
 /*************************/
 void FPwin::filePrint()
 {
-    if (isLoading()) return;
+    if (isLoading() || hasAnotherDialog())
+        return;
 
     TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->currentWidget());
     if (tabPage == nullptr) return;
 
-    if (hasAnotherDialog()) return;
-    updateShortcuts (true);
+    showWarningBar ("<center><b><big>" + tr ("Printing in progress...") + "</big></b></center>",
+                    0);
+    lockWindow (tabPage, true);
 
     TextEdit *textEdit = tabPage->textEdit();
 
@@ -4051,8 +4474,6 @@ void FPwin::filePrint()
     }
     QTimer::singleShot (0, this, [this]() {unbusy();}); // wait for the dialog too
 
-    QPrinter printer (QPrinter::HighResolution);
-
     /* choose an appropriate name and directory */
     QString fileName = textEdit->getFileName();
     if (fileName.isEmpty())
@@ -4060,24 +4481,37 @@ void FPwin::filePrint()
         QDir dir = QDir::home();
         fileName= dir.filePath (tr ("Untitled"));
     }
-    if (printer.outputFormat() == QPrinter::PdfFormat)
-        printer.setOutputFileName (fileName.append (".pdf"));
-    /*else if (printer.outputFormat() == QPrinter::PostScriptFormat)
-        printer.setOutputFileName (fileName.append (".ps"));*/
+    fileName.append (".pdf");
 
-    QPrintDialog dlg (&printer, this);
+    bool Use96Dpi = QCoreApplication::instance()->testAttribute (Qt::AA_Use96Dpi);
+    QScreen *screen = QGuiApplication::primaryScreen();
+    qreal sourceDpiX = Use96Dpi ? 96 : screen ? screen->logicalDotsPerInchX() : 100;
+    qreal sourceDpiY = Use96Dpi ? 96 : screen ? screen->logicalDotsPerInchY() : 100;
+    Printing *thread = new Printing (textEdit->document(),
+                                     fileName,
+                                     textEdit->getTextPrintColor(),
+                                     textEdit->getDarkValue(),
+                                     sourceDpiX,
+                                     sourceDpiY);
+
+    QPrintDialog dlg (thread->printer(), this);
     dlg.setWindowModality (Qt::WindowModal);
-    if (textEdit->textCursor().hasSelection())
-        dlg.setOption (QAbstractPrintDialog::PrintSelection);
     dlg.setWindowTitle (tr ("Print Document"));
     if (dlg.exec() == QDialog::Accepted)
     {
-        waitToMakeBusy();
-        textEdit->print (&printer);
-        QTimer::singleShot (0, this, [this]() {unbusy();});
+        connect (thread, &Loading::finished, thread, &QObject::deleteLater);
+        connect (thread, &Loading::finished, tabPage, [this, tabPage] {
+            lockWindow (tabPage, false);
+            showWarningBar ("<center><b><big>" + tr ("Printing completed.") + "</big></b></center>");
+        });
+        thread->start();
     }
-
-    updateShortcuts (false);
+    else
+    {
+        delete thread;
+        lockWindow (tabPage, false);
+        closeWarningBar();
+    }
 }
 /*************************/
 void FPwin::nextTab()
@@ -4090,6 +4524,14 @@ void FPwin::nextTab()
     if (sidePane_)
     {
         int curRow = sidePane_->listWidget()->currentRow();
+        if (curRow < 0 && !sideItems_.isEmpty())
+        {
+            if (TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index)))
+            {
+                if (QListWidgetItem *wi = sideItems_.key (tabPage))
+                    curRow = sidePane_->listWidget()->row (wi);
+            }
+        }
         if (curRow == sidePane_->listWidget()->count() - 1)
         {
             if (static_cast<FPsingleton*>(qApp)->getConfig().getTabWrapAround())
@@ -4117,6 +4559,14 @@ void FPwin::previousTab()
     if (sidePane_)
     {
         int curRow = sidePane_->listWidget()->currentRow();
+        if (curRow < 0 && !sideItems_.isEmpty())
+        {
+            if (TabPage *tabPage = qobject_cast< TabPage *>(ui->tabWidget->widget (index)))
+            {
+                if (QListWidgetItem *wi = sideItems_.key (tabPage))
+                    curRow = sidePane_->listWidget()->row (wi);
+            }
+        }
         if (curRow == 0)
         {
             if (static_cast<FPsingleton*>(qApp)->getConfig().getTabWrapAround())
@@ -4758,7 +5208,7 @@ void FPwin::tabContextMenu (const QPoint& p)
 /*************************/
 void FPwin::listContextMenu (const QPoint& p)
 {
-    if (!sidePane_ || sideItems_.isEmpty())
+    if (!sidePane_ || sideItems_.isEmpty() || locked_)
         return;
 
     ListWidget *lw = sidePane_->listWidget();
@@ -4938,13 +5388,15 @@ void FPwin::checkSpelling()
     if (dictPath.isEmpty())
     {
         showWarningBar ("<center><b><big>" + tr ("You need to add a Hunspell dictionary.") + "</big></b></center>"
-                        + "<center>" + tr ("See Preferences → Text → Spell Checking!") + "</center>");
+                        + "<center>" + tr ("See Preferences → Text → Spell Checking!") + "</center>",
+                        20);
         return;
     }
     if (!QFile::exists (dictPath))
     {
         showWarningBar ("<center><b><big>" + tr ("The Hunspell dictionary does not exist.") + "</big></b></center>"
-                        + "<center>" + tr ("See Preferences → Text → Spell Checking!") + "</center>");
+                        + "<center>" + tr ("See Preferences → Text → Spell Checking!") + "</center>",
+                        20);
         return;
     }
     if (dictPath.endsWith (".dic"))
@@ -4953,7 +5405,8 @@ void FPwin::checkSpelling()
     if (!QFile::exists (affixFile))
     {
         showWarningBar ("<center><b><big>" + tr ("The Hunspell dictionary is not accompanied by an affix file.") + "</big></b></center>"
-                        + "<center>" + tr ("See Preferences → Text → Spell Checking!") + "</center>");
+                        + "<center>" + tr ("See Preferences → Text → Spell Checking!") + "</center>",
+                        20);
         return;
     }
     QString confPath = QStandardPaths::writableLocation (QStandardPaths::ConfigLocation);
@@ -5153,13 +5606,12 @@ void FPwin::manageSessions()
     FPsingleton *singleton = static_cast<FPsingleton*>(qApp);
     for (int i = 0; i < singleton->Wins.count(); ++i)
     {
-        QList<QDialog*> dialogs  = singleton->Wins.at (i)->findChildren<QDialog*>();
-        for (int j = 0; j < dialogs.count(); ++j)
+        const auto dialogs  = singleton->Wins.at (i)->findChildren<QDialog*>();
+        for (const auto &dialog : dialogs)
         {
-            if (dialogs.at (j)->objectName() ==  "sessionDialog")
+            if (dialog->objectName() == "sessionDialog")
             {
-                dialogs.at (j)->raise();
-                dialogs.at (j)->activateWindow();
+                stealFocus (dialog);
                 return;
             }
         }
@@ -5180,10 +5632,13 @@ void FPwin::pauseAutoSaving (bool pause)
     if (!autoSaver_) return;
     if (pause)
     {
-        autoSaverPause_.start();
-        autoSaverRemainingTime_ = autoSaver_->remainingTime();
+        if (!autoSaverPause_.isValid()) // don't start it again
+        {
+            autoSaverPause_.start();
+            autoSaverRemainingTime_ = autoSaver_->remainingTime();
+        }
     }
-    else if (autoSaverPause_.isValid())
+    else if (!locked_ && autoSaverPause_.isValid())
     {
         if (autoSaverPause_.hasExpired (autoSaverRemainingTime_))
         {
@@ -5456,7 +5911,7 @@ void FPwin::helpDoc()
 #if defined(Q_OS_HAIKU)
         helpPath = QStringLiteral (DATADIR) + "/help_" + lang;
 #elif defined(Q_OS_MAC)
-        helpPath = qApp->applicationDirPath() + QStringLiteral ("/../Resources/") + "/help_" + lang);
+        helpPath = qApp->applicationDirPath() + QStringLiteral ("/../Resources/") + "/help_" + lang;
 #else
         helpPath = QStringLiteral (DATADIR) + "/featherpad/help_" + lang;
 #endif
@@ -5543,20 +5998,51 @@ void FPwin::helpDoc()
     ui->tabWidget->setTabToolTip (index, title);
     if (sidePane_)
     {
-        QListWidgetItem *cur = sidePane_->listWidget()->currentItem();
-        cur->setText (title);
-        cur->setToolTip (title);
+        if (QListWidgetItem *cur = sidePane_->listWidget()->currentItem())
+        {
+            cur->setText (title);
+            cur->setToolTip (title);
+        }
+    }
+}
+/*************************/
+void FPwin::stealFocus (QWidget *w)
+{
+    if (w->isMinimized())
+        w->setWindowState ((w->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+#ifdef HAS_X11
+    else if (static_cast<FPsingleton*>(qApp)->isX11())
+    {
+        if (isWindowShaded (w->winId()))
+            unshadeWindow (w->winId());
+    }
+#endif
+
+    raise();
+    /* WARNING: Under Wayland, this warning is shown by qtwayland -> qwaylandwindow.cpp
+                -> QWaylandWindow::requestActivateWindow():
+                "Wayland does not support QWindow::requestActivate()" */
+    if (!static_cast<FPsingleton*>(qApp)->isWayland())
+    {
+        w->activateWindow();
+        QTimer::singleShot (0, w, [w]() {
+            if (QWindow *win = w->windowHandle())
+                win->requestActivate();
+        });
     }
 }
 /*************************/
 void FPwin::stealFocus()
 {
-    raise();
-    activateWindow();
-    QTimer::singleShot (0, this, [this]() {
-        if (QWindow *win = windowHandle())
-            win->requestActivate();
-    });
+    /* if there is a (sessions) dialog, let it keep the focus */
+    const auto dialogs = findChildren<QDialog*>();
+    if (!dialogs.isEmpty())
+    {
+        stealFocus (dialogs.at (0));
+        return;
+    }
+
+    stealFocus (this);
 }
 
 }

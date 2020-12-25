@@ -50,6 +50,9 @@ public:
     bool isX11() const {
       return isX11_;
     }
+    bool isWayland() const {
+      return isWayland_;
+    }
     QStandardItemModel *searchModel() const {
         return searchModel_;
     }
@@ -63,7 +66,7 @@ signals:
     void messageReceived (const QString& message);
 
 private:
-    bool cursorInfo (const QString &commndOpt, int& lineNum, int& posInLine);
+    bool cursorInfo (const QString& commndOpt, int& lineNum, int& posInLine);
     QStringList processInfo (const QString& message,
                              long &desktop, int& lineNum, int& posInLine,
                              bool *newWindow);
@@ -75,6 +78,7 @@ private:
     Config config_;
     QStringList lastFiles_;
     bool isX11_;
+    bool isWayland_;
     bool socketFailure_;
     QStandardItemModel *searchModel_; // The common search history if any.
 

@@ -47,21 +47,24 @@ private:
     QCollator collator_;
 };
 
-/* In the single-selection mode, we don't want Ctrl + left click to
-   deselect an item or an item to be selected with the middle click. */
 class ListWidget : public QListWidget
 {
     Q_OBJECT
 public:
-    ListWidget (QWidget *parent = nullptr) : QListWidget (parent) {
-        setMouseTracking (true); // for instant tooltips
-    }
+    ListWidget (QWidget *parent = nullptr);
 
     QListWidgetItem *getItemFromIndex (const QModelIndex &index) const;
+
+    void scrollToCurrentItem();
+
+    void lockListWidget (bool lock) {
+        locked_ = lock;
+    }
 
 signals:
     void closeItem (QListWidgetItem *item);
     void closeSidePane();
+    void currentItemUpdated (QListWidgetItem *current);
     void rowsAreInserted (int start, int end);
 
 protected:
@@ -71,6 +74,9 @@ protected:
 
 protected slots:
     void rowsInserted (const QModelIndex &parent, int start, int end) override;
+
+private:
+    bool locked_;
 };
 
 class SidePane : public QWidget
@@ -83,6 +89,11 @@ public:
     ListWidget* listWidget() const {
         return lw_;
     }
+
+    void lockPane (bool lock);
+
+protected:
+    bool eventFilter (QObject *watched, QEvent *event);
 
 private slots:
     void filter (const QString&);

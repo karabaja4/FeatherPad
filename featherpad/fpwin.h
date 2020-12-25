@@ -83,6 +83,10 @@ public:
         return (sidePane_ != nullptr);
     }
 
+    bool isLocked() const {
+        return locked_;
+    }
+
     void addCursorPosLabel();
     void addRemoveLangBtn (bool add);
 
@@ -119,14 +123,14 @@ private slots:
     void newTabFromRecent();
     void clearRecentMenu();
     void updateRecenMenu();
-    void closeTab();
-    void closeTabAtIndex (int index);
+    void closePage();
+    void closeTabAtIndex (int tabIndex);
     void copyTabFileName();
     void copyTabFilePath();
-    void closeAllTabs();
-    void closeNextTabs();
-    void closePreviousTabs();
-    void closeOtherTabs();
+    void closeAllPages();
+    void closeNextPages();
+    void closePreviousPages();
+    void closeOtherPages();
     void fileOpen();
     void reload();
     void enforceEncoding (QAction*);
@@ -191,7 +195,7 @@ private slots:
     void tabContextMenu (const QPoint& p);
     void listContextMenu (const QPoint& p);
     void editorContextMenu (const QPoint& p);
-    void changeTab (QListWidgetItem *current, QListWidgetItem*);
+    void changeTab (QListWidgetItem *current);
     void toggleSidePane();
     void prefDialog();
     void checkSpelling();
@@ -232,11 +236,21 @@ private:
                    bool enforceUneditable = false, bool multiple = false);
     bool alreadyOpen (TabPage *tabPage) const;
     void setTitle (const QString& fileName, int tabIndex = -1);
-    DOCSTATE savePrompt (int tabIndex, bool noToAll);
-    bool saveFile (bool keepSyntax);
+    DOCSTATE savePrompt (int tabIndex, bool noToAll,
+                         int first = 0, int last = 0, bool closingWindow = false,
+                         QListWidgetItem *curItem = nullptr, TabPage *curPage = nullptr);
+    bool saveFile (bool keepSyntax,
+                   int first = 0, int last = 0, bool closingWindow = false,
+                   QListWidgetItem *curItem = nullptr, TabPage *curPage = nullptr);
+    void saveAsRoot (const QString& fileName, TabPage *tabPage,
+                     int first, int last, bool closingWindow,
+                     QListWidgetItem *curItem, TabPage *curPage,
+                     bool MSWinLineEnd);
+    void reloadSyntaxHighlighter (TextEdit *textEdit);
+    void lockWindow (TabPage *tabPage, bool lock);
     void saveAllFiles (bool showWarning);
     void closeEvent (QCloseEvent *event);
-    bool closeTabs (int first, int last, bool saveFilesList = false);
+    bool closePages (int first, int last, bool saveFilesList = false);
     void dragEnterEvent (QDragEnterEvent *event);
     void dropEvent (QDropEvent *event);
     void dropTab (const QString& str);
@@ -261,11 +275,12 @@ private:
     void waitToMakeBusy();
     void unbusy();
     void displayMessage (bool error);
-    void showWarningBar (const QString& message, bool startupBar = false);
+    void showWarningBar (const QString& message, int timeout = 10, bool startupBar = false);
     void closeWarningBar (bool keepOnStartup = false);
     void disconnectLambda();
     void updateLangBtn (TextEdit *textEdit);
     void updateGUIForSingleTab (bool single);
+    void stealFocus (QWidget *w);
     void stealFocus();
 
     QActionGroup *aGroup_;
@@ -285,8 +300,11 @@ private:
     QTimer *autoSaver_;
     QElapsedTimer autoSaverPause_;
     int autoSaverRemainingTime_;
-
-    bool standalone_; // only used internally
+    // Needed with saving as root:
+    bool locked_;
+    bool closePreviousPages_;
+    // Only used internally:
+    bool standalone_;
 };
 
 }

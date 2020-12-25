@@ -1,5 +1,5 @@
 /*
- * Copyright (C) Pedram Pourang (aka Tsu Jan) 2014 <tsujan2000@gmail.com>
+ * Copyright (C) Pedram Pourang (aka Tsu Jan) 2020 <tsujan2000@gmail.com>
  *
  * FeatherPad is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,26 +17,40 @@
  * @license GPL-3.0+ <https://spdx.org/licenses/GPL-3.0+.html>
  */
 
-#ifndef X11_H
-#define X11_H
+#ifndef PRINTING_H
+#define PRINTING_H
 
-/*
-NOTE: This header should be included only if HAS_X11 is true,
-      which means that WITHOUT_X11 isn't used with compilation.
-
-      Moreover, the following functions should be called only if
-      FeatherPad is running under X11.
-*/
-
-#include <X11/Xlib.h>
+#include <QThread>
+#include <QColor>
+#include <QTextDocument>
+#include <QPrinter>
 
 namespace FeatherPad {
 
-long fromDesktop();
-long onWhichDesktop (Window window);
-bool isWindowShaded (Window window);
-void unshadeWindow (Window window);
+class Printing : public QThread {
+    Q_OBJECT
+
+public:
+    Printing (QTextDocument *document, const QString &fileName,
+              const QColor &textColor, int darkValue,
+              qreal sourceDpiX, qreal sourceDpiY);
+    ~Printing();
+
+    QPrinter* printer() const {
+        return printer_;
+    }
+
+private:
+    void run();
+
+    QTextDocument *document_;
+    QPrinter *printer_;
+    QColor textColor_;
+    QColor darkColor_;
+    qreal sourceDpiX_;
+    qreal sourceDpiY_;
+};
 
 }
 
-#endif // X11_H
+#endif // PRINTING_H

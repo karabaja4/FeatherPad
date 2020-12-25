@@ -1,3 +1,9 @@
+lessThan(QT_MAJOR_VERSION, 6) {
+  lessThan(QT_MINOR_VERSION, 12) {
+    error("FeatherPad needs at least Qt 5.12.0")
+  }
+}
+
 QT += core gui \
       widgets \
       printsupport \
@@ -37,6 +43,7 @@ SOURCES += main.cpp \
            highlighter-perl-regex.cpp \
            vscrollbar.cpp \
            loading.cpp \
+           printing.cpp \
            tabpage.cpp \
            searchbar.cpp \
            session.cpp \
@@ -59,6 +66,7 @@ HEADERS += singleton.h \
            config.h \
            pref.h \
            loading.h \
+           printing.h \
            messagebox.h \
            tabpage.h \
            searchbar.h \
